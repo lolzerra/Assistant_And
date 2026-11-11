@@ -62,10 +62,22 @@ class Api(private val prefs: Prefs) {
         return JSONObject(res).getInt("id")
     }
 
-    /** Messages d'une conversation : [(rôle, texte)], pour réafficher la discussion en cours. */
-    suspend fun messages(conversation: Int): List<Pair<String, String>> {
+    data class Past(val role: String, val text: String, val images: List<Int>)
+
+    /** Messages d'une conversation, avec les identifiants de leurs images, pour réafficher la discussion en cours. */
+    suspend fun messages(conversation: Int): List<Past> {
         val arr = JSONObject(call(request("/api/conversations/$conversation").get().build())).getJSONArray("messages")
-        return List(arr.length()) { arr.getJSONObject(it).let { m -> m.getString("role") to m.optString("content") } }
+        return List(arr.length()) { i ->
+            val m = arr.getJSONObject(i)
+            val atts = m.optJSONArray("attachments") ?: JSONArray()
+            val images = (0 until atts.length()).map { atts.getJSONObject(it) }.filter { it.optString("kind") == "image" }.map { it.getInt("id") }
+            Past(m.getString("role"), m.optString("content"), images)
+        }
+    }
+
+    /** Image d'une pièce jointe déjà envoyée (pour les miniatures de l'historique). */
+    suspend fun image(id: Int): ByteArray = withContext(Dispatchers.IO) {
+        http.newCall(request("/api/attachments/$id/image").get().build()).execute().checked().use { it.body!!.bytes() }
     }
 
     /** Envoie une image (JPEG) ; renvoie l'identifiant de la pièce jointe à passer au message. */

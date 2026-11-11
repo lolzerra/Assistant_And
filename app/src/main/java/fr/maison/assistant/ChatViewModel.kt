@@ -3,6 +3,7 @@ package fr.maison.assistant
 import android.app.Application
 import android.net.Uri
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -18,13 +19,16 @@ data class Msg(
     val user: Boolean,
     val text: String,
     val steps: List<String> = emptyList(),
-    val images: Int = 0,
+    val thumbs: List<ImageBitmap> = emptyList(),  // images envoyées depuis le téléphone
+    val imageIds: List<Int> = emptyList(),       // images d'un message rechargé depuis le serveur
     val error: String? = null,
     val stats: String? = null,
     val pending: Boolean = false,
 )
 
-class Attachment(val label: String, val bytes: ByteArray)
+class Attachment(val label: String, val bytes: ByteArray) {
+    val thumb: ImageBitmap? = Images.thumb(bytes)
+}
 
 class ChatViewModel(app: Application) : AndroidViewModel(app) {
     val prefs = Prefs(app)
@@ -55,7 +59,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             runCatching { api.messages(cid) }
                 .onSuccess { list ->
                     messages.clear()
-                    list.forEach { (role, text) -> messages.add(Msg(user = role == "user", text = text)) }
+                    list.forEach { m -> messages.add(Msg(user = m.role == "user", text = m.text, imageIds = m.images)) }
                 }
                 .onFailure { prefs.conversation = 0 } // conversation supprimée sur le site : on repart de zéro
         }
@@ -134,9 +138,11 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         notice = null
         speaker.stop()
         busy = true
-        messages.add(Msg(user = true, text = text, images = files.size))
+        messages.add(Msg(user = true, text = text, thumbs = files.mapNotNull { it.thumb }))
         messages.add(Msg(user = false, text = "", pending = true))
         val index = messages.lastIndex
+        // Voix phrase par phrase pendant l'écriture de la réponse.
+        val voice = if (prefs.speak || fromVoice) speaker.stream() else null
         sending = viewModelScope.launch {
             var reply = ""
             try {
@@ -153,8 +159,8 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 val steps = mutableListOf<String>()
                 api.send(prefs.conversation, body).collect { ev ->
                     when {
-                        ev.has("content") -> reply += ev.getString("content")
-                        ev.has("content_reset") -> reply = ev.getString("content_reset")
+                        ev.has("content") -> { reply += ev.getString("content"); voice?.feed(reply) }
+                        ev.has("content_reset") -> { reply = ev.getString("content_reset"); voice?.feed(reply) }
                         ev.has("tool") -> steps.add(stepLabel(ev.getJSONObject("tool")))
                         ev.has("error") -> throw ApiError(ev.getString("error"))
                     }
@@ -163,10 +169,12 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                     } else messages[index].stats
                     messages[index] = messages[index].copy(text = reply, steps = steps.toList(), stats = stats, pending = !ev.optBoolean("done"))
                 }
-                if (reply.isNotBlank() && (prefs.speak || fromVoice)) speaker.speak(reply)
+                voice?.finish(reply)
             } catch (e: kotlinx.coroutines.CancellationException) {
+                speaker.stop()
                 messages[index] = messages[index].copy(pending = false, error = "Arrêté")
             } catch (e: Exception) {
+                voice?.finish(reply)
                 if (e.message?.contains("Conversation introuvable") == true) prefs.conversation = 0
                 messages[index] = messages[index].copy(text = reply, pending = false, error = e.message ?: "Erreur")
             } finally {

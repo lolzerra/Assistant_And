@@ -4,7 +4,15 @@ import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.unit.Dp
+import fr.maison.assistant.Images
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -17,6 +25,7 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -81,8 +90,17 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, hasMicPermission: () -
         if (granted) vm.toggleRecording() else vm.notice = "Le micro est nécessaire pour dicter"
     }
 
-    LaunchedEffect(vm.messages.size, vm.messages.lastOrNull()?.text?.length) {
-        if (vm.messages.isNotEmpty()) listState.animateScrollToItem(vm.messages.lastIndex)
+    // Suivi du bas de la réponse, sauf si l'utilisateur remonte pour lire : on reprend quand il revient en bas.
+    var follow by remember { mutableStateOf(true) }
+    LaunchedEffect(listState.isScrollInProgress) {
+        if (!listState.isScrollInProgress) follow = !listState.canScrollForward
+    }
+    LaunchedEffect(vm.messages.size) { follow = true }
+    LaunchedEffect(vm.messages.size, vm.messages.lastOrNull()?.text?.length, vm.messages.lastOrNull()?.steps?.size) {
+        if (follow && vm.messages.isNotEmpty() && !listState.isScrollInProgress) {
+            listState.scrollToItem(vm.messages.lastIndex)
+            listState.scrollBy(100_000f) // jusqu'au bas du dernier message, quelle que soit sa longueur
+        }
     }
 
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -102,7 +120,7 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, hasMicPermission: () -
                     Text("Pose une question, dicte avec 🎤, ou joins une photo ou l'écran.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 24.dp))
                 }
-                itemsIndexed(vm.messages) { _, m -> Bubble(m) }
+                itemsIndexed(vm.messages) { _, m -> Bubble(vm, m) }
             }
 
             vm.notice?.let {
@@ -114,12 +132,15 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, hasMicPermission: () -
                 LazyRow(Modifier.fillMaxWidth().padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     screenshot?.let { f ->
                         item {
+                            val preview = remember(f) { runCatching { Images.thumb(f.readBytes()) }.getOrNull() }
                             AssistChip(onClick = { vm.attachFile(f, "Ecran"); ScreenCapture.clear() },
-                                label = { Text("📱 Joindre l'écran") })
+                                leadingIcon = { preview?.let { Thumb(it, 28.dp) } },
+                                label = { Text("Joindre l'écran") })
                         }
                     }
                     items(vm.attachments) { a ->
-                        InputChip(selected = false, onClick = { vm.removeAttachment(a) }, label = { Text("🖼 ${a.label}") },
+                        InputChip(selected = false, onClick = { vm.removeAttachment(a) },
+                            label = { a.thumb?.let { Thumb(it, 40.dp) } ?: Text(a.label) },
                             trailingIcon = { Icon(Icons.Default.Close, "Retirer", Modifier.size(16.dp)) })
                     }
                 }
@@ -161,13 +182,33 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, hasMicPermission: () -
 }
 
 @Composable
-private fun Bubble(m: Msg) {
+private fun Thumb(bitmap: ImageBitmap, size: Dp) {
+    Image(bitmap, contentDescription = "Image jointe", contentScale = ContentScale.Crop,
+        modifier = Modifier.size(size).clip(RoundedCornerShape(8.dp)))
+}
+
+/** Miniature d'une image déjà sur le serveur (messages rechargés). */
+@Composable
+private fun RemoteThumb(vm: ChatViewModel, id: Int, size: Dp) {
+    val bitmap by produceState<ImageBitmap?>(null, id) {
+        value = runCatching { Images.thumb(vm.api.image(id)) }.getOrNull()
+    }
+    bitmap?.let { Thumb(it, size) } ?: Box(Modifier.size(size).clip(RoundedCornerShape(8.dp)).background(MaterialTheme.colorScheme.surfaceVariant))
+}
+
+@Composable
+private fun Bubble(vm: ChatViewModel, m: Msg) {
     val colors = MaterialTheme.colorScheme
     Column(Modifier.fillMaxWidth(), horizontalAlignment = if (m.user) Alignment.End else Alignment.Start) {
         if (m.user) {
             Column(Modifier.widthIn(max = 320.dp).background(colors.primary, RoundedCornerShape(14.dp)).padding(10.dp)) {
-                if (m.images > 0) Text("🖼 ${m.images} image${if (m.images > 1) "s" else ""}", color = colors.onPrimary, fontSize = 13.sp)
                 if (m.text.isNotEmpty()) Text(m.text, color = colors.onPrimary)
+                if (m.thumbs.isNotEmpty() || m.imageIds.isNotEmpty()) {
+                    Row(Modifier.padding(top = if (m.text.isNotEmpty()) 6.dp else 0.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        m.thumbs.forEach { Thumb(it, 64.dp) }
+                        m.imageIds.forEach { RemoteThumb(vm, it, 64.dp) }
+                    }
+                }
             }
         } else {
             m.steps.forEach { Text(it, color = colors.onSurfaceVariant, fontSize = 13.sp) }
