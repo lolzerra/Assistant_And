@@ -29,6 +29,16 @@
             </intent-filter>
         </activity>
 
+        <!-- Fenêtre ouverte par l'appui long : demi-écran par-dessus l'appli en cours -->
+        <activity
+            android:name=".AssistActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:taskAffinity="fr.maison.assistant.assist"
+            android:theme="@style/Theme.Assistant.Overlay"
+            android:windowSoftInputMode="adjustResize" />
+
         <!-- Rôle d'assistant numérique : appui long sur le bouton d'alimentation ou d'accueil -->
         <service
             android:name=".assist.AssistService"

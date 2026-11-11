@@ -7,7 +7,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.service.voice.VoiceInteractionSession
-import fr.maison.assistant.MainActivity
+import fr.maison.assistant.AssistActivity
 import fr.maison.assistant.ScreenCapture
 
 /**
@@ -21,8 +21,7 @@ class AssistSession(context: Context) : VoiceInteractionSession(context) {
     override fun onShow(args: Bundle?, showFlags: Int) {
         super.onShow(args, showFlags)
         ScreenCapture.clear()
-        val intent = Intent(context, MainActivity::class.java)
-            .putExtra(MainActivity.EXTRA_FROM_ASSIST, true)
+        val intent = Intent(context, AssistActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         startAssistantActivity(intent)
         // Laisse le temps à la capture d'arriver avant de fermer la session.

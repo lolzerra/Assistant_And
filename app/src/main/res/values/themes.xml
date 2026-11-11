@@ -5,4 +5,16 @@
         <item name="android:statusBarColor">#FF0E1016</item>
         <item name="android:navigationBarColor">#FF0E1016</item>
     </style>
+
+    <!-- Fenêtre de l'assistant : transparente, l'appli en cours reste visible au-dessus de la demi-feuille -->
+    <style name="Theme.Assistant.Overlay" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:backgroundDimEnabled">true</item>
+        <item name="android:backgroundDimAmount">0.25</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">#FF161923</item>
+        <item name="android:windowAnimationStyle">@android:style/Animation.InputMethod</item>
+    </style>
 </resources>

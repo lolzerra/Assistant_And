@@ -216,7 +216,7 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, hasMicPermission: () -
 }
 
 @Composable
-private fun Thumb(bitmap: ImageBitmap, size: Dp) {
+internal fun Thumb(bitmap: ImageBitmap, size: Dp) {
     Image(bitmap, contentDescription = "Image jointe", contentScale = ContentScale.Crop,
         modifier = Modifier.size(size).clip(RoundedCornerShape(8.dp)))
 }
@@ -231,7 +231,7 @@ private fun RemoteThumb(vm: ChatViewModel, id: Int, size: Dp) {
 }
 
 @Composable
-private fun Bubble(vm: ChatViewModel, m: Msg) {
+internal fun Bubble(vm: ChatViewModel, m: Msg) {
     val colors = MaterialTheme.colorScheme
     Column(Modifier.fillMaxWidth(), horizontalAlignment = if (m.user) Alignment.End else Alignment.Start) {
         if (m.user) {

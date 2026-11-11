@@ -34,6 +34,8 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     val prefs = Prefs(app)
     val api = Api(prefs)
     private val recorder = Recorder()
+    /** Niveau du micro (0 à 1) pour le visualiseur. */
+    val micLevel = recorder.level
     val speaker = Speaker(app, api, viewModelScope)
 
     val messages = mutableStateListOf<Msg>()
@@ -104,6 +106,10 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 val wav = recorder.record()
                 recording = false
+                if (!recorder.heardSpeech) {
+                    notice = "Je n'ai rien entendu"
+                    return@launch
+                }
                 transcribing = true
                 val text = api.transcribe(wav).trim()
                 if (text.isNotEmpty()) {
@@ -133,7 +139,6 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
         val files = attachments.toList()
-        ScreenCapture.clear()  // la capture ne vaut que pour la question qui suit l'appel de l'assistant
         input = ""
         attachments.clear()
         notice = null
