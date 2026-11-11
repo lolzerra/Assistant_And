@@ -133,6 +133,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
         val files = attachments.toList()
+        ScreenCapture.clear()  // la capture ne vaut que pour la question qui suit l'appel de l'assistant
         input = ""
         attachments.clear()
         notice = null
@@ -186,7 +187,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun stepLabel(tool: JSONObject): String = when (tool.optString("name")) {
         "web_search" -> "🔎 Recherche : ${tool.optString("query")}"
-        "fetch_page" -> "📄 Lecture d'une page"
+        "fetch_page" -> "📄 Page lue : " + (runCatching { java.net.URI(tool.optString("url")).host?.removePrefix("www.") }.getOrNull() ?: "page web")
         else -> "🔧 ${tool.optString("name")}"
     }
 

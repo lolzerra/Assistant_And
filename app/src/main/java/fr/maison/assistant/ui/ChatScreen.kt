@@ -5,6 +5,13 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.Smartphone
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.produceState
@@ -78,6 +85,7 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, hasMicPermission: () -
     val listState = rememberLazyListState()
     val screenshot by ScreenCapture.file.collectAsState()
     var cameraFile by remember { mutableStateOf<File?>(null) }
+    var imageMenu by remember { mutableStateOf(false) }
 
     val pickPhotos = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(5)) { uris ->
         uris.forEach { vm.attachUri(it) }
@@ -127,17 +135,9 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, hasMicPermission: () -
                 Text(it, color = MaterialTheme.colorScheme.error, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
             }
 
-            // Pièces jointes : capture d'écran proposée, puis images choisies
-            if (screenshot != null || vm.attachments.isNotEmpty()) {
+            // Images choisies, en attente d'envoi
+            if (vm.attachments.isNotEmpty()) {
                 LazyRow(Modifier.fillMaxWidth().padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    screenshot?.let { f ->
-                        item {
-                            val preview = remember(f) { runCatching { Images.thumb(f.readBytes()) }.getOrNull() }
-                            AssistChip(onClick = { vm.attachFile(f, "Ecran"); ScreenCapture.clear() },
-                                leadingIcon = { preview?.let { Thumb(it, 28.dp) } },
-                                label = { Text("Joindre l'écran") })
-                        }
-                    }
                     items(vm.attachments) { a ->
                         InputChip(selected = false, onClick = { vm.removeAttachment(a) },
                             label = { a.thumb?.let { Thumb(it, 40.dp) } ?: Text(a.label) },
@@ -148,14 +148,48 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, hasMicPermission: () -
 
             // Saisie
             Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.Bottom) {
-                IconButton(onClick = { pickPhotos.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }) {
-                    Icon(Icons.Default.Image, "Joindre une photo")
+                Box {
+                    IconButton(onClick = { imageMenu = true }) {
+                        // Point sur l'icône : une capture de l'écran est prête à être jointe
+                        BadgedBox(badge = { if (screenshot != null) Badge(containerColor = MaterialTheme.colorScheme.primary) }) {
+                            Icon(Icons.Default.AddPhotoAlternate, "Joindre une image")
+                        }
+                    }
+                    DropdownMenu(expanded = imageMenu, onDismissRequest = { imageMenu = false }) {
+                        DropdownMenuItem(
+                            text = { Text("Galerie") },
+                            leadingIcon = { Icon(Icons.Default.Image, null) },
+                            onClick = {
+                                imageMenu = false
+                                pickPhotos.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Appareil photo") },
+                            leadingIcon = { Icon(Icons.Default.PhotoCamera, null) },
+                            onClick = {
+                                imageMenu = false
+                                val f = File(context.cacheDir, "photo-${System.currentTimeMillis()}.jpg")
+                                cameraFile = f
+                                takePhoto.launch(FileProvider.getUriForFile(context, "${context.packageName}.files", f))
+                            },
+                        )
+                        val shot = screenshot
+                        DropdownMenuItem(
+                            text = { Text(if (shot != null) "Capture d'écran" else "Capture d'écran (appui long pour appeler l'assistant)") },
+                            leadingIcon = {
+                                val preview = remember(shot) { shot?.let { runCatching { Images.thumb(it.readBytes()) }.getOrNull() } }
+                                preview?.let { Thumb(it, 24.dp) } ?: Icon(Icons.Default.Smartphone, null)
+                            },
+                            enabled = shot != null,
+                            onClick = {
+                                imageMenu = false
+                                shot?.let { vm.attachFile(it, "Ecran") }
+                                ScreenCapture.clear()
+                            },
+                        )
+                    }
                 }
-                IconButton(onClick = {
-                    val f = File(context.cacheDir, "photo-${System.currentTimeMillis()}.jpg")
-                    cameraFile = f
-                    takePhoto.launch(FileProvider.getUriForFile(context, "${context.packageName}.files", f))
-                }) { Icon(Icons.Default.PhotoCamera, "Prendre une photo") }
                 OutlinedTextField(
                     value = vm.input, onValueChange = { vm.input = it },
                     modifier = Modifier.weight(1f), maxLines = 6,
@@ -211,7 +245,14 @@ private fun Bubble(vm: ChatViewModel, m: Msg) {
                 }
             }
         } else {
-            m.steps.forEach { Text(it, color = colors.onSurfaceVariant, fontSize = 13.sp) }
+            if (m.pending) {
+                m.steps.forEach { Text(it, color = colors.onSurfaceVariant, fontSize = 13.sp) }
+            } else if (m.steps.isNotEmpty()) {
+                var open by remember { mutableStateOf(false) }
+                Text("${if (open) "▾" else "▸"} 🔎 Recherches (${m.steps.size})", color = colors.onSurfaceVariant, fontSize = 13.sp,
+                    modifier = Modifier.clickable { open = !open }.padding(vertical = 2.dp))
+                if (open) m.steps.forEach { Text(it, color = colors.onSurfaceVariant, fontSize = 13.sp, modifier = Modifier.padding(start = 14.dp)) }
+            }
             if (m.text.isEmpty() && m.pending) Text("…", color = colors.onSurfaceVariant)
             SelectionContainer { Text(Markdown.render(m.text), color = colors.onBackground) }
             m.error?.let { Text("⚠ $it", color = colors.error, fontSize = 13.sp) }

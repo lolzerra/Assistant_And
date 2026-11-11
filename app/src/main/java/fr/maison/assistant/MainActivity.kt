@@ -24,6 +24,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        forgetOldCapture(intent)
         enableEdgeToEdge()
         setContent {
             MaterialTheme(colorScheme = Palette) {
@@ -37,6 +38,12 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        forgetOldCapture(intent)
+    }
+
+    /** Ouverture normale (icône, retour à l'appli) : une capture d'un appel précédent n'est plus proposée. */
+    private fun forgetOldCapture(intent: Intent?) {
+        if (intent?.getBooleanExtra(EXTRA_FROM_ASSIST, false) != true) ScreenCapture.clear()
     }
 
     override fun onStop() {
