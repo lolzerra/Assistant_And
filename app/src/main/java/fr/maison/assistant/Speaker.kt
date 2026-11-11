@@ -88,12 +88,17 @@ class Speaker(private val context: Context, private val api: Api, private val sc
     private suspend fun play(audio: ByteArray) {
         val file = File(context.cacheDir, "voix-${count++ % 3}.wav").apply { writeBytes(audio) }
         val done = CompletableDeferred<Unit>()
-        val mp = MediaPlayer().apply {
-            setDataSource(file.path)
-            setOnCompletionListener { done.complete(Unit) }
-            setOnErrorListener { _, _, _ -> done.complete(Unit); true }
-            prepare()
-            start()
+        val mp = MediaPlayer()
+        try {
+            mp.setDataSource(file.path)
+            mp.setOnCompletionListener { done.complete(Unit) }
+            mp.setOnErrorListener { _, _, _ -> done.complete(Unit); true }
+            mp.prepare()
+            mp.start()
+        } catch (e: Exception) { // morceau illisible : on passe au suivant au lieu de faire planter l'appli
+            Journal.log("lecture voix impossible : $e")
+            mp.release()
+            return
         }
         player = mp
         try {

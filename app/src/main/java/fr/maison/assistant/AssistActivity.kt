@@ -48,6 +48,7 @@ class AssistActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Journal.log("fenêtre assistant créée (restaurée : ${savedInstanceState != null}, verrouillé : ${keyguard.isKeyguardLocked})")
         setShowWhenLocked(true)
         enableEdgeToEdge()
         setContent {
@@ -70,6 +71,7 @@ class AssistActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        Journal.log("fenêtre assistant rappelée (verrouillé : ${keyguard.isKeyguardLocked})")
         unlockThenListen() // nouvel appui long alors que la fenêtre était encore ouverte
     }
 
@@ -86,9 +88,13 @@ class AssistActivity : ComponentActivity() {
         locked = true
         keyguard.requestDismissKeyguard(this, object : KeyguardManager.KeyguardDismissCallback() {
             override fun onDismissSucceeded() {
+                Journal.log("déverrouillé")
                 locked = false
                 listen()
             }
+
+            override fun onDismissCancelled() = Journal.log("déverrouillage annulé")
+            override fun onDismissError() = Journal.log("déverrouillage impossible")
         })
     }
 
@@ -109,8 +115,15 @@ class AssistActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        Journal.log("fenêtre assistant visible")
+        vm.uploadJournal()
+    }
+
     override fun onStop() {
         super.onStop()
+        Journal.log("fenêtre assistant en arrière-plan (écran allumé : ${getSystemService(PowerManager::class.java).isInteractive})")
         vm.speaker.stop()
         if (vm.recording) vm.toggleRecording()
         // Écran éteint : on ferme, le prochain appui long repart d'une fenêtre neuve.
@@ -120,6 +133,7 @@ class AssistActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        Journal.log("fenêtre assistant détruite (fermée : $isFinishing)")
         if (isFinishing) ScreenCapture.clear()
     }
 }

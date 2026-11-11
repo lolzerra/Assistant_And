@@ -24,6 +24,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Journal.log("appli ouverte (restaurée : ${savedInstanceState != null})")
         forgetOldCapture(intent)
         enableEdgeToEdge()
         setContent {
@@ -46,8 +47,15 @@ class MainActivity : ComponentActivity() {
         if (intent?.getBooleanExtra(EXTRA_FROM_ASSIST, false) != true) ScreenCapture.clear()
     }
 
+    override fun onResume() {
+        super.onResume()
+        Journal.log("appli visible")
+        vm.uploadJournal()
+    }
+
     override fun onStop() {
         super.onStop()
+        Journal.log("appli en arrière-plan")
         vm.speaker.stop() // l'appli passe en arrière-plan : on se tait
     }
 

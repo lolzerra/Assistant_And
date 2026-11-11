@@ -87,6 +87,11 @@ class Api(private val prefs: Prefs) {
         return JSONObject(res).getInt("id")
     }
 
+    /** Journal de diagnostic de l'appli. */
+    suspend fun journal(text: String) {
+        call(request("/api/app/journal").post(text.toRequestBody("text/plain; charset=utf-8".toMediaType())).build())
+    }
+
     /** Dictée : un enregistrement WAV 16 kHz, transcrit par Whisper sur la carte 2. */
     suspend fun transcribe(wav: ByteArray): String {
         val res = call(request("/api/transcribe").post(wav.toRequestBody("audio/wav".toMediaType())).build())

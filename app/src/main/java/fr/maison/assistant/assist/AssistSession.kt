@@ -8,6 +8,7 @@ import android.os.Handler
 import android.os.Looper
 import android.service.voice.VoiceInteractionSession
 import fr.maison.assistant.AssistActivity
+import fr.maison.assistant.Journal
 import fr.maison.assistant.ScreenCapture
 
 /**
@@ -20,20 +21,28 @@ class AssistSession(context: Context) : VoiceInteractionSession(context) {
 
     override fun onShow(args: Bundle?, showFlags: Int) {
         super.onShow(args, showFlags)
+        Journal.log("session affichée (flags $showFlags)")
         ScreenCapture.clear()
         val intent = Intent(context, AssistActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-        startAssistantActivity(intent)
+        runCatching { startAssistantActivity(intent) }
+            .onSuccess { Journal.log("fenêtre assistant demandée") }
+            .onFailure { e ->
+                Journal.log("échec startAssistantActivity : $e — essai direct")
+                runCatching { context.startActivity(intent) }.onFailure { Journal.log("échec startActivity : $e") }
+            }
         // Laisse le temps à la capture d'arriver avant de fermer la session.
         handler.postDelayed({ hide() }, 2500)
     }
 
     @Deprecated("Remplacée par onHandleAssist à partir d'Android 10, mais toujours appelée pour la capture")
     override fun onHandleScreenshot(screenshot: Bitmap?) {
-        if (screenshot != null) ScreenCapture.save(context, screenshot)
+        Journal.log(if (screenshot != null) "capture reçue" else "pas de capture")
+        if (screenshot != null) runCatching { ScreenCapture.save(context, screenshot) }
     }
 
     override fun onHide() {
+        Journal.log("session cachée")
         handler.removeCallbacksAndMessages(null)
         super.onHide()
     }

@@ -54,6 +54,10 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         loadConversation()
     }
 
+    fun uploadJournal() {
+        if (prefs.loggedIn) viewModelScope.launch { Journal.upload(api) }
+    }
+
     fun loadConversation() {
         val cid = prefs.conversation
         if (!prefs.loggedIn || cid == 0) return
