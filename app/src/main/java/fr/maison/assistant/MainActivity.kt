@@ -50,6 +50,7 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         Journal.log("appli visible")
+        vm.syncConversation()
         vm.uploadJournal()
     }
 

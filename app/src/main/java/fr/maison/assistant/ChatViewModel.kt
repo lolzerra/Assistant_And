@@ -49,6 +49,8 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var notice by mutableStateOf<String?>(null)
     private var sending: Job? = null
+    /** Conversation affichée ici ; l'autre fenêtre (appli ou assistant) peut en avoir changé entre-temps. */
+    private var shown = 0
 
     init {
         loadConversation()
@@ -58,12 +60,20 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         if (prefs.loggedIn) viewModelScope.launch { Journal.upload(api) }
     }
 
+    /** Affiche la conversation en cours si l'assistant en a ouvert une autre pendant ce temps. */
+    fun syncConversation() {
+        if (busy || prefs.conversation == shown) return
+        if (prefs.conversation == 0) newConversation() else loadConversation()
+    }
+
     fun loadConversation() {
         val cid = prefs.conversation
         if (!prefs.loggedIn || cid == 0) return
         viewModelScope.launch {
             runCatching { api.messages(cid) }
                 .onSuccess { list ->
+                    if (prefs.conversation != cid) return@onSuccess // nouvelle conversation entre-temps
+                    shown = cid
                     messages.clear()
                     list.forEach { m -> messages.add(Msg(user = m.role == "user", text = m.text, imageIds = m.images)) }
                 }
@@ -74,6 +84,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     fun newConversation() {
         speaker.stop()
         prefs.conversation = 0
+        shown = 0
         messages.clear()
         attachments.clear()
         notice = null
@@ -157,6 +168,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             var reply = ""
             try {
                 if (prefs.conversation == 0) prefs.conversation = api.newConversation(prefs.model)
+                shown = prefs.conversation
                 val ids = files.mapIndexed { i, a -> api.uploadImage("${a.label.lowercase()}-${i + 1}.jpg", a.bytes) }
                 val body = JSONObject()
                     .put("content", text)

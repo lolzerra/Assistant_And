@@ -58,6 +58,7 @@ fun SettingsScreen(vm: ChatViewModel, onClose: () -> Unit) {
     var web by remember { mutableStateOf(p.web) }
     var speak by remember { mutableStateOf(p.speak) }
     var autoSend by remember { mutableStateOf(p.sendAfterDictation) }
+    var newOnShortcut by remember { mutableStateOf(p.newOnShortcut) }
     var instructions by remember { mutableStateOf(p.instructions) }
     var status by remember { mutableStateOf<String?>(null) }
     var update by remember { mutableStateOf<Updater.Release?>(null) }
@@ -68,6 +69,7 @@ fun SettingsScreen(vm: ChatViewModel, onClose: () -> Unit) {
         p.web = web
         p.speak = speak
         p.sendAfterDictation = autoSend
+        p.newOnShortcut = newOnShortcut
         p.instructions = instructions
     }
 
@@ -113,6 +115,7 @@ fun SettingsScreen(vm: ChatViewModel, onClose: () -> Unit) {
             Toggle("Recherche sur internet", web) { web = it }
             Toggle("Lire les réponses à voix haute", speak) { speak = it }
             Toggle("Envoyer dès la fin de la dictée", autoSend) { autoSend = it }
+            Toggle("Nouvelle conversation à l'appel par raccourci", newOnShortcut) { newOnShortcut = it }
             OutlinedTextField(instructions, { instructions = it }, Modifier.fillMaxWidth(), minLines = 4,
                 label = { Text("Consignes (personnalité, style, longueur…)") })
 

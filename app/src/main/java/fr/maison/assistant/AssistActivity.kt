@@ -65,14 +65,23 @@ class AssistActivity : ComponentActivity() {
                 )
             }
         }
-        if (savedInstanceState == null) unlockThenListen()
+        if (savedInstanceState == null) {
+            freshConversation()
+            unlockThenListen()
+        }
         else locked = keyguard.isKeyguardLocked
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         Journal.log("fenêtre assistant rappelée (verrouillé : ${keyguard.isKeyguardLocked})")
+        freshConversation()
         unlockThenListen() // nouvel appui long alors que la fenêtre était encore ouverte
+    }
+
+    /** Réglage « Nouvelle conversation à l'appel par raccourci » : chaque appui long repart de zéro. */
+    private fun freshConversation() {
+        if (vm.prefs.newOnShortcut && !vm.busy) vm.newConversation()
     }
 
     private val keyguard get() = getSystemService(KeyguardManager::class.java)

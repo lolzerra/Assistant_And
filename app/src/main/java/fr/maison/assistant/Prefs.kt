@@ -30,6 +30,9 @@ class Prefs(context: Context) {
     var sendAfterDictation: Boolean
         get() = p.getBoolean("send_after_dictation", true)
         set(v) = p.edit().putBoolean("send_after_dictation", v).apply()
+    var newOnShortcut: Boolean
+        get() = p.getBoolean("new_on_shortcut", true)
+        set(v) = p.edit().putBoolean("new_on_shortcut", v).apply()
     var instructions: String
         get() = p.getString("instructions", DEFAULT_INSTRUCTIONS) ?: DEFAULT_INSTRUCTIONS
         set(v) = p.edit().putString("instructions", v).apply()
