@@ -119,7 +119,8 @@ class Api(private val prefs: Prefs) {
 
     /** Un morceau de texte → WAV, par Piper sur le serveur. */
     suspend fun speechAudio(text: String): ByteArray = withContext(Dispatchers.IO) {
-        val req = request("/api/speech/audio").post(JSONObject().put("text", text).toString().toRequestBody(json)).build()
+        val body = JSONObject().put("text", text).put("voice", prefs.voice)
+        val req = request("/api/speech/audio").post(body.toString().toRequestBody(json)).build()
         http.newCall(req).execute().checked().use { it.body!!.bytes() }
     }
 }

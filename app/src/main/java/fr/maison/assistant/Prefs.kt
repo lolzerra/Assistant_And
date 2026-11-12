@@ -30,6 +30,10 @@ class Prefs(context: Context) {
     var sendAfterDictation: Boolean
         get() = p.getBoolean("send_after_dictation", true)
         set(v) = p.edit().putBoolean("send_after_dictation", v).apply()
+    /** Voix de lecture : tom, siwis, jessica, pierre, gilles (voir /api/speech/voices). */
+    var voice: String
+        get() = p.getString("voice", "tom") ?: "tom"
+        set(v) = p.edit().putString("voice", v).apply()
     var newOnShortcut: Boolean
         get() = p.getBoolean("new_on_shortcut", true)
         set(v) = p.edit().putBoolean("new_on_shortcut", v).apply()

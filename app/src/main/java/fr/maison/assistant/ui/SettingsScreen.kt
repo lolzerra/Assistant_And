@@ -4,6 +4,9 @@ import android.content.Intent
 import android.provider.Settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.material3.FilterChip
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -57,6 +60,7 @@ fun SettingsScreen(vm: ChatViewModel, onClose: () -> Unit) {
     var think by remember { mutableStateOf(p.think) }
     var web by remember { mutableStateOf(p.web) }
     var speak by remember { mutableStateOf(p.speak) }
+    var voice by remember { mutableStateOf(p.voice) }
     var autoSend by remember { mutableStateOf(p.sendAfterDictation) }
     var newOnShortcut by remember { mutableStateOf(p.newOnShortcut) }
     var instructions by remember { mutableStateOf(p.instructions) }
@@ -114,6 +118,11 @@ fun SettingsScreen(vm: ChatViewModel, onClose: () -> Unit) {
             Toggle("Réflexion avant de répondre (plus lent)", think) { think = it }
             Toggle("Recherche sur internet", web) { web = it }
             Toggle("Lire les réponses à voix haute", speak) { speak = it }
+            VoicePicker(voice) { chosen ->
+                voice = chosen
+                p.voice = chosen  // tout de suite, pour l'écouter
+                vm.speaker.speak("Bonjour, je suis ton assistant. Voici ma voix.")
+            }
             Toggle("Envoyer dès la fin de la dictée", autoSend) { autoSend = it }
             Toggle("Nouvelle conversation à l'appel par raccourci", newOnShortcut) { newOnShortcut = it }
             OutlinedTextField(instructions, { instructions = it }, Modifier.fillMaxWidth(), minLines = 4,
@@ -164,5 +173,23 @@ private fun Toggle(label: String, checked: Boolean, onChange: (Boolean) -> Unit)
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(label, Modifier.weight(1f))
         Switch(checked, onChange)
+    }
+}
+
+private val VOICES = listOf(
+    "tom" to "Tom", "pierre" to "Pierre", "gilles" to "Gilles", "siwis" to "Siwis", "jessica" to "Jessica",
+)
+
+/** Choix de la voix : un appui la sélectionne et la fait entendre. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun VoicePicker(selected: String, onPick: (String) -> Unit) {
+    Column {
+        Text("Voix (appuie pour l'écouter)", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            VOICES.forEach { (id, label) ->
+                FilterChip(selected = id == selected, onClick = { onPick(id) }, label = { Text(label) })
+            }
+        }
     }
 }
