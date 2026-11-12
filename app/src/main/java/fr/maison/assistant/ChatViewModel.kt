@@ -24,6 +24,7 @@ data class Msg(
     val error: String? = null,
     val stats: String? = null,
     val pending: Boolean = false,
+    val actions: List<PhoneAction> = emptyList(),  // réveil, appel, SMS… demandés par l'assistant
 )
 
 class Attachment(val label: String, val bytes: ByteArray) {
@@ -179,19 +180,24 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                     .put("label", "Assistant")
                     .put("instructions", prefs.instructions)
                 val steps = mutableListOf<String>()
+                val actions = mutableListOf<PhoneAction>()
                 api.send(prefs.conversation, body).collect { ev ->
                     when {
                         ev.has("content") -> { reply += ev.getString("content"); voice?.feed(reply) }
                         ev.has("content_reset") -> { reply = ev.getString("content_reset"); voice?.feed(reply) }
                         ev.has("tool") -> steps.add(stepLabel(ev.getJSONObject("tool")))
+                        ev.has("phone") -> ev.getJSONObject("phone").let { actions.add(PhoneAction(it.getString("name"), it)) }
                         ev.has("error") -> throw ApiError(ev.getString("error"))
                     }
                     val stats = if (ev.optBoolean("done")) {
                         "${ev.optDouble("seconds", 0.0)} s · ${ev.optInt("tokens")} tokens · ${ev.optDouble("tok_s", 0.0)} tok/s"
                     } else messages[index].stats
-                    messages[index] = messages[index].copy(text = reply, steps = steps.toList(), stats = stats, pending = !ev.optBoolean("done"))
+                    messages[index] = messages[index].copy(text = reply, steps = steps.toList(), stats = stats,
+                        pending = !ev.optBoolean("done"), actions = actions.toList())
                 }
                 voice?.finish(reply)
+                // Réveil, appli, itinéraire… : exécutés à la fin de la réponse. Appels et SMS attendent un appui.
+                actions.filter { !it.needsConfirm }.forEach { PhoneActions.run(getApplication(), it) }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 speaker.stop()
                 messages[index] = messages[index].copy(pending = false, error = "Arrêté")
@@ -212,6 +218,14 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         "ha_appareils" -> "🏠 Appareils" + tool.optString("recherche").let { if (it.isBlank()) "" else " : $it" }
         "ha_action" -> "🏠 ${tool.optString("action")} → ${tool.optString("entites")}"
         "ha_notifier" -> "📱 Notification : ${tool.optString("telephone")}"
+        "telephone_reveil" -> "⏰ Réveil ${tool.optString("heure")}"
+        "telephone_minuteur" -> "⏱ Minuteur"
+        "telephone_ouvrir_appli" -> "📱 Ouvrir ${tool.optString("nom")}"
+        "telephone_itineraire" -> "🧭 Itinéraire : ${tool.optString("destination")}"
+        "telephone_appeler" -> "📞 Appel : ${tool.optString("contact")}"
+        "telephone_sms" -> "💬 SMS : ${tool.optString("contact")}"
+        "telephone_agenda" -> "📅 Agenda : ${tool.optString("titre")}"
+        "telephone_partager" -> "↗ Partage"
         "programmer" -> "⏰ Programmé le ${tool.optString("date")} à ${tool.optString("heure")}"
         "taches_programmees" -> "⏰ Tâches programmées"
         "annuler_tache" -> "⏰ Tâche n°${tool.optString("numero")} annulée"

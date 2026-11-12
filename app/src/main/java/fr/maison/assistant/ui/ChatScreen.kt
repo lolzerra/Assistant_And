@@ -249,12 +249,13 @@ internal fun Bubble(vm: ChatViewModel, m: Msg) {
                 m.steps.forEach { Text(it, color = colors.onSurfaceVariant, fontSize = 13.sp) }
             } else if (m.steps.isNotEmpty()) {
                 var open by remember { mutableStateOf(false) }
-                Text("${if (open) "▾" else "▸"} 🔎 Recherches (${m.steps.size})", color = colors.onSurfaceVariant, fontSize = 13.sp,
+                Text("${if (open) "▾" else "▸"} ${if (m.steps.all { it.startsWith("🔎") || it.startsWith("📄") }) "🔎 Recherches" else "🔧 Étapes"} (${m.steps.size})", color = colors.onSurfaceVariant, fontSize = 13.sp,
                     modifier = Modifier.clickable { open = !open }.padding(vertical = 2.dp))
                 if (open) m.steps.forEach { Text(it, color = colors.onSurfaceVariant, fontSize = 13.sp, modifier = Modifier.padding(start = 14.dp)) }
             }
             if (m.text.isEmpty() && m.pending) Text("…", color = colors.onSurfaceVariant)
             SelectionContainer { Text(Markdown.render(m.text), color = colors.onBackground) }
+            m.actions.forEach { PhoneCard(it) }
             m.error?.let { Text("⚠ $it", color = colors.error, fontSize = 13.sp) }
             m.stats?.let { Text(it, color = colors.onSurfaceVariant, fontSize = 11.sp) }
         }
