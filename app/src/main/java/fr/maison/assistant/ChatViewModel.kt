@@ -9,7 +9,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
@@ -187,6 +189,15 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                         ev.has("content_reset") -> { reply = ev.getString("content_reset"); voice?.feed(reply) }
                         ev.has("tool") -> steps.add(stepLabel(ev.getJSONObject("tool")))
                         ev.has("phone") -> ev.getJSONObject("phone").let { actions.add(PhoneAction(it.getString("name"), it)) }
+                        ev.has("phone_query") -> {
+                            // Le serveur attend le résultat (notifications, musique…) avant de continuer la réponse.
+                            val q = ev.getJSONObject("phone_query")
+                            val a = PhoneAction(q.getString("name"), q)
+                            val (result, status) = withContext(Dispatchers.IO) { PhoneActions.query(getApplication(), a) }
+                            a.status = status
+                            actions.add(a)
+                            runCatching { api.phoneResult(q.getString("id"), result) }
+                        }
                         ev.has("error") -> throw ApiError(ev.getString("error"))
                     }
                     val stats = if (ev.optBoolean("done")) {
@@ -226,6 +237,11 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         "telephone_sms" -> "💬 SMS : ${tool.optString("contact")}"
         "telephone_agenda" -> "📅 Agenda : ${tool.optString("titre")}"
         "telephone_partager" -> "↗ Partage"
+        "telephone_notifications" -> "🔔 Lecture des notifications"
+        "telephone_repondre" -> "💬 Réponse : ${tool.optString("notification")}"
+        "telephone_media" -> "🎵 Musique : ${tool.optString("action")}"
+        "telephone_ne_pas_deranger" -> if (tool.optBoolean("actif")) "🔕 Ne pas déranger" else "🔔 Fin du Ne pas déranger"
+        "telephone_reglages" -> "⚙ Réglages du téléphone"
         "programmer" -> "⏰ Programmé le ${tool.optString("date")} à ${tool.optString("heure")}"
         "taches_programmees" -> "⏰ Tâches programmées"
         "annuler_tache" -> "⏰ Tâche n°${tool.optString("numero")} annulée"

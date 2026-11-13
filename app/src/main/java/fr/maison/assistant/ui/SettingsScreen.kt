@@ -1,6 +1,10 @@
 package fr.maison.assistant.ui
 
+import android.app.NotificationManager
 import android.content.Intent
+import android.net.Uri
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import fr.maison.assistant.NotifService
 import android.provider.Settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -105,6 +109,9 @@ fun SettingsScreen(vm: ChatViewModel, onClose: () -> Unit) {
                 }) { Text("Se connecter") }
             }
 
+            Section("Autorisations")
+            Permissions()
+
             Section("Assistant du téléphone")
             Text("Pour l'ouvrir par appui long : Applis par défaut → Assistant numérique → Assistant. " +
                 "Active aussi « Utiliser une capture d'écran » pour pouvoir lui montrer l'écran.",
@@ -191,5 +198,41 @@ private fun VoicePicker(selected: String, onPick: (String) -> Unit) {
                 FilterChip(selected = id == selected, onClick = { onPick(id) }, label = { Text(label) })
             }
         }
+    }
+}
+
+/** Autorisations spéciales d'Android, à activer dans ses réglages ; l'état se met à jour au retour dans l'appli. */
+@Composable
+private fun Permissions() {
+    val context = LocalContext.current
+    var tick by remember { mutableStateOf(0) }
+    LifecycleResumeEffect(Unit) {
+        tick++
+        onPauseOrDispose { }
+    }
+    @Suppress("UNUSED_EXPRESSION") tick  // relit l'état à chaque retour
+    val nm = context.getSystemService(NotificationManager::class.java)
+    fun open(intent: Intent) = context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    PermissionRow("Accès aux notifications", "lire et répondre aux messages, piloter la musique", NotifService.enabled(context)) {
+        open(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+    }
+    PermissionRow("Ne pas déranger", "l'activer ou le couper", nm.isNotificationPolicyAccessGranted) {
+        open(Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS))
+    }
+    PermissionRow("Modifier les paramètres système", "régler la luminosité", Settings.System.canWrite(context)) {
+        open(Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, Uri.parse("package:" + context.packageName)))
+    }
+    Text("Contacts, appels et SMS sont demandés au premier usage.", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
+@Composable
+private fun PermissionRow(title: String, what: String, granted: Boolean, onOpen: () -> Unit) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(title)
+            Text(if (granted) "✓ Autorisé · $what" else what, fontSize = 13.sp,
+                color = if (granted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        OutlinedButton(onClick = onOpen) { Text(if (granted) "Gérer" else "Autoriser") }
     }
 }

@@ -87,6 +87,11 @@ class Api(private val prefs: Prefs) {
         return JSONObject(res).getInt("id")
     }
 
+    /** Résultat d'une action demandée pendant la réponse (le serveur l'attend pour continuer). */
+    suspend fun phoneResult(id: String, result: String) {
+        call(request("/api/phone/result/$id").post(JSONObject().put("result", result.take(30_000)).toString().toRequestBody(json)).build())
+    }
+
     /** Journal de diagnostic de l'appli. */
     suspend fun journal(text: String) {
         call(request("/api/app/journal").post(text.toRequestBody("text/plain; charset=utf-8".toMediaType())).build())

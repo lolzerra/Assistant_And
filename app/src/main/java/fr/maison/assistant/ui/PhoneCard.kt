@@ -45,6 +45,7 @@ fun PhoneCard(a: PhoneAction) {
             val status = a.status
             when {
                 status != null -> Text(status, fontSize = 14.sp, color = if (status.startsWith("⚠")) colors.error else colors.onSurface)
+                a.name == "telephone_repondre" -> ConfirmReply(a)
                 a.needsConfirm -> ConfirmContact(a)
                 else -> Text("…", color = colors.onSurfaceVariant)
             }
@@ -102,4 +103,20 @@ private fun ConfirmContact(a: PhoneAction) {
         }
     }
     TextButton(onClick = { a.status = if (sms) "SMS annulé" else "Appel annulé" }) { Text("Annuler") }
+}
+
+/** Réponse à une notification (WhatsApp, SMS…) : part seulement après un appui. */
+@Composable
+private fun ConfirmReply(a: PhoneAction) {
+    val context = LocalContext.current
+    val colors = MaterialTheme.colorScheme
+    val target = remember { PhoneActions.replyTarget(context, a) }
+    Text("💬 Répondre à ${target ?: "« ${a.arg("notification")} »"}", fontSize = 14.sp)
+    Text("« ${a.arg("message")} »", fontSize = 14.sp, color = colors.onSurfaceVariant)
+    if (target == null) {
+        Text("⚠ Notification introuvable (déjà lue ?) : réponds depuis l'appli concernée", fontSize = 13.sp, color = colors.error)
+    } else {
+        Button(onClick = { a.status = PhoneActions.reply(context, a) }) { Text("Envoyer") }
+    }
+    TextButton(onClick = { a.status = "Réponse annulée" }) { Text("Annuler") }
 }

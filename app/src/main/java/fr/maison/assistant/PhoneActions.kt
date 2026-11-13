@@ -1,7 +1,16 @@
 package fr.maison.assistant
 
 import android.Manifest
+import android.app.NotificationManager
+import android.app.RemoteInput
 import android.content.ActivityNotFoundException
+import android.media.AudioManager
+import android.media.session.MediaSessionManager
+import android.media.session.PlaybackState
+import android.os.Bundle
+import android.os.SystemClock
+import android.provider.Settings
+import android.view.KeyEvent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -26,7 +35,7 @@ import java.util.Calendar
 class PhoneAction(val name: String, val args: JSONObject) {
     /** Résultat affiché sous la réponse : « ✓ Réveil mis à 06:30 », « ⚠ … ». */
     var status by mutableStateOf<String?>(null)
-    val needsConfirm get() = name == "telephone_appeler" || name == "telephone_sms"
+    val needsConfirm get() = name == "telephone_appeler" || name == "telephone_sms" || name == "telephone_repondre"
     fun arg(key: String) = args.optString(key).trim()
 }
 
@@ -152,6 +161,123 @@ object PhoneActions {
         start(context, Intent.createChooser(send, "Partager"))
         return "↗ Partage ouvert ✓"
     }
+
+    // ---------- Actions dont l'assistant attend le résultat ----------
+
+    /** Exécute l'action et renvoie (texte pour le modèle, statut affiché). */
+    fun query(context: Context, a: PhoneAction): Pair<String, String> = try {
+        when (a.name) {
+            "telephone_notifications" -> {
+                val text = NotifService.list(context, a.arg("appli"), a.args.optInt("nombre", 10).takeIf { it > 0 } ?: 10)
+                text to if (text.startsWith("Erreur")) "⚠ Autorise l'accès aux notifications : ⚙ Réglages → Autorisations"
+                else "🔔 Notifications lues"
+            }
+            "telephone_media" -> media(context, a.arg("action"), a.args.optInt("volume", -1)).let { it to "🎵 $it" }
+            "telephone_ne_pas_deranger" -> dnd(context, a.args.optBoolean("actif")).let { it to it }
+            "telephone_reglages" -> settings(context, a).let { it to it }
+            else -> "Erreur : action inconnue" to "⚠ Action inconnue"
+        }
+    } catch (e: Exception) {
+        "Erreur : ${e.message}" to "⚠ ${e.message}"
+    }.also { Journal.log("action ${a.name} : ${it.second}") }
+
+    private fun media(context: Context, action: String, volume: Int): String {
+        val am = context.getSystemService(AudioManager::class.java)
+        val controller = if (NotifService.enabled(context)) runCatching {
+            context.getSystemService(MediaSessionManager::class.java).getActiveSessions(NotifService.component(context)).firstOrNull()
+        }.getOrNull() else null
+        fun key(code: Int) {
+            val t = SystemClock.uptimeMillis()
+            am.dispatchMediaKeyEvent(KeyEvent(t, t, KeyEvent.ACTION_DOWN, code, 0))
+            am.dispatchMediaKeyEvent(KeyEvent(t, t, KeyEvent.ACTION_UP, code, 0))
+        }
+        val tc = controller?.transportControls
+        when (action) {
+            "lecture" -> tc?.play() ?: key(KeyEvent.KEYCODE_MEDIA_PLAY)
+            "pause" -> tc?.pause() ?: key(KeyEvent.KEYCODE_MEDIA_PAUSE)
+            "suivant" -> tc?.skipToNext() ?: key(KeyEvent.KEYCODE_MEDIA_NEXT)
+            "precedent" -> tc?.skipToPrevious() ?: key(KeyEvent.KEYCODE_MEDIA_PREVIOUS)
+            "stop" -> tc?.stop() ?: key(KeyEvent.KEYCODE_MEDIA_STOP)
+            "volume" -> {
+                val max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+                am.setStreamVolume(AudioManager.STREAM_MUSIC, (volume.coerceIn(0, 100) * max + 50) / 100, AudioManager.FLAG_SHOW_UI)
+            }
+        }
+        if (action in setOf("lecture", "suivant", "precedent")) Thread.sleep(800)  // le temps que le lecteur change de morceau
+        val pct = am.getStreamVolume(AudioManager.STREAM_MUSIC) * 100 / am.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
+        val meta = controller?.metadata
+        val what = meta?.let {
+            listOfNotNull(it.getString(android.media.MediaMetadata.METADATA_KEY_TITLE), it.getString(android.media.MediaMetadata.METADATA_KEY_ARTIST))
+                .joinToString(" — ")
+        }.orEmpty()
+        val playing = when (controller?.playbackState?.state) {
+            PlaybackState.STATE_PLAYING -> "en lecture"
+            PlaybackState.STATE_PAUSED -> "en pause"
+            null -> if (am.isMusicActive) "en lecture" else "rien ne joue"
+            else -> "arrêté"
+        }
+        val app = controller?.packageName?.let { pkg ->
+            runCatching { context.packageManager.getApplicationLabel(context.packageManager.getApplicationInfo(pkg, 0)).toString() }.getOrDefault(pkg)
+        }
+        val done = if (action == "etat") "" else "Fait (${action}). "
+        return done + listOfNotNull(app, what.ifEmpty { null }, playing).joinToString(" · ") + " · volume $pct %"
+    }
+
+    private fun dnd(context: Context, on: Boolean): String {
+        val filter = if (on) NotificationManager.INTERRUPTION_FILTER_PRIORITY else NotificationManager.INTERRUPTION_FILTER_ALL
+        val nm = context.getSystemService(NotificationManager::class.java)
+        when {
+            nm.isNotificationPolicyAccessGranted -> nm.setInterruptionFilter(filter)
+            NotifService.instance != null -> NotifService.instance!!.requestInterruptionFilter(filter)
+            else -> return "⚠ Autorise l'accès aux notifications : ⚙ Réglages → Autorisations"
+        }
+        return if (on) "🔕 Ne pas déranger activé ✓" else "🔔 Ne pas déranger coupé ✓"
+    }
+
+    private fun settings(context: Context, a: PhoneAction): String {
+        val done = mutableListOf<String>()
+        if (a.args.has("luminosite")) {
+            val pct = a.args.optInt("luminosite").coerceIn(0, 100)
+            if (!Settings.System.canWrite(context)) {
+                done += "⚠ Luminosité : autorise « Modifier les paramètres système » (⚙ Réglages → Autorisations)"
+            } else {
+                val cr = context.contentResolver
+                Settings.System.putInt(cr, Settings.System.SCREEN_BRIGHTNESS_MODE, Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL)
+                Settings.System.putInt(cr, Settings.System.SCREEN_BRIGHTNESS, (pct * 255 + 50) / 100)
+                done += "☀ Luminosité à $pct % ✓"
+            }
+        }
+        if (a.args.has("sonnerie")) {
+            val pct = a.args.optInt("sonnerie").coerceIn(0, 100)
+            val am = context.getSystemService(AudioManager::class.java)
+            done += try {
+                val max = am.getStreamMaxVolume(AudioManager.STREAM_RING)
+                am.setStreamVolume(AudioManager.STREAM_RING, (pct * max + 50) / 100, AudioManager.FLAG_SHOW_UI)
+                "🔔 Sonnerie à $pct % ✓"
+            } catch (e: SecurityException) {
+                "⚠ Sonnerie : refusé par Android (mode Ne pas déranger actif ?)"
+            }
+        }
+        return done.joinToString("\n")
+    }
+
+    // ---------- Répondre à une notification ----------
+
+    fun reply(context: Context, a: PhoneAction): String {
+        val sbn = NotifService.findReplyable(context, a.arg("notification"))
+            ?: return if (NotifService.instance == null) "⚠ Autorise l'accès aux notifications : ⚙ Réglages → Autorisations"
+            else "⚠ La notification n'est plus là : réponds depuis l'appli"
+        val action = NotifService.replyAction(sbn.notification) ?: return "⚠ Pas de bouton Répondre"
+        val intent = Intent()
+        val results = Bundle()
+        action.remoteInputs.filter { it.allowFreeFormInput }.forEach { results.putCharSequence(it.resultKey, a.arg("message")) }
+        RemoteInput.addResultsToIntent(action.remoteInputs, intent, results)
+        action.actionIntent.send(context, 0, intent)
+        return "💬 Réponse envoyée à ${NotifService.describe(context, sbn)} ✓"
+    }
+
+    fun replyTarget(context: Context, a: PhoneAction): String? =
+        NotifService.findReplyable(context, a.arg("notification"))?.let { NotifService.describe(context, it) }
 
     // ---------- Contacts, appels, SMS ----------
 
