@@ -117,6 +117,7 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, hasMicPermission: () -
             Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Assistant", fontWeight = FontWeight.SemiBold, fontSize = 18.sp, modifier = Modifier.padding(start = 8.dp).weight(1f))
                 IconButton(onClick = { vm.speaker.stop() }) { Icon(Icons.Default.VolumeOff, "Couper la voix") }
+                ConversationMenu(vm)
                 IconButton(onClick = vm::newConversation) { Icon(Icons.Default.AddComment, "Nouvelle conversation") }
                 IconButton(onClick = onSettings) { Icon(Icons.Default.Settings, "Réglages") }
             }

@@ -128,6 +128,7 @@ private fun Header(vm: ChatViewModel, onOpenApp: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         Text("Assistant", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
         IconButton(onClick = { vm.speaker.stop() }) { Icon(Icons.Default.VolumeOff, "Couper la voix") }
+        ConversationMenu(vm)
         IconButton(onClick = vm::newConversation) { Icon(Icons.Default.AddComment, "Nouvelle conversation") }
         IconButton(onClick = onOpenApp) { Icon(Icons.Default.OpenInFull, "Ouvrir l'appli") }
     }

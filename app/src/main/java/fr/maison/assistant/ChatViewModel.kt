@@ -93,6 +93,43 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         notice = null
     }
 
+    // ---------- Enregistrement, partage ----------
+
+    /** Garde la conversation en cours dans l'appli (« appli ») ou aussi sur le site (« site »). */
+    fun saveConversation(where: String) {
+        val cid = prefs.conversation
+        if (cid == 0 || messages.isEmpty()) {
+            notice = "Rien à enregistrer pour l'instant"
+            return
+        }
+        viewModelScope.launch {
+            runCatching { api.save(cid, where) }
+                .onSuccess {
+                    val text = if (where == "site") "Conversation enregistrée ici et sur le site" else "Conversation enregistrée dans l'assistant"
+                    android.widget.Toast.makeText(getApplication(), text, android.widget.Toast.LENGTH_SHORT).show()
+                }
+                .onFailure { notice = "Enregistrement impossible : ${it.message}" }
+        }
+    }
+
+    suspend fun savedList(): List<Api.Saved> = api.saved()
+
+    suspend fun forget(id: Int) = api.save(id, "aucun")
+
+    fun openConversation(id: Int) {
+        speaker.stop()
+        attachments.clear()
+        notice = null
+        prefs.conversation = id
+        shown = 0
+        loadConversation()
+    }
+
+    /** La conversation telle qu'affichée, en texte simple, pour la fenêtre de partage. */
+    fun transcript(): String = messages.filter { it.text.isNotBlank() }.joinToString("\n\n") { m ->
+        (if (m.user) "Moi : " else "Assistant : ") + m.text.trim()
+    }
+
     // ---------- Pièces jointes ----------
 
     fun attachUri(uri: Uri, label: String = "Photo") = viewModelScope.launch {

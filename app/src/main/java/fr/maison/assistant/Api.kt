@@ -62,6 +62,21 @@ class Api(private val prefs: Prefs) {
         return JSONObject(res).getInt("id")
     }
 
+    /** where : « appli » (seulement dans l'appli), « site » (aussi sur le site), « aucun » (retirer de la liste). */
+    suspend fun save(conversation: Int, where: String) {
+        call(request("/api/conversations/$conversation/save").post(JSONObject().put("where", where).toString().toRequestBody(json)).build())
+    }
+
+    data class Saved(val id: Int, val title: String, val updated: Long, val site: Boolean, val count: Int)
+
+    suspend fun saved(): List<Saved> {
+        val arr = JSONArray(call(request("/api/app/saved").get().build()))
+        return List(arr.length()) { i ->
+            val o = arr.getJSONObject(i)
+            Saved(o.getInt("id"), o.optString("title"), (o.optDouble("updated_at", 0.0) * 1000).toLong(), o.optBoolean("site"), o.optInt("n"))
+        }
+    }
+
     data class Past(val role: String, val text: String, val images: List<Int>)
 
     /** Messages d'une conversation, avec les identifiants de leurs images, pour réafficher la discussion en cours. */
