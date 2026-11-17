@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Le serveur n'est joignable que sur le réseau local ou par le VPN, en http. -->
+<!-- Tout passe en https. Le serveur maison (certificat auto-signé) est reconnu par son seul certificat, épinglé
+     dans l'appli : aucun autre certificat n'est accepté pour cette adresse. GitHub (mises à jour) garde les autorités habituelles. -->
 <network-security-config>
-    <base-config cleartextTrafficPermitted="true" />
+    <base-config cleartextTrafficPermitted="false" />
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="false">192.168.1.41</domain>
+        <trust-anchors>
+            <certificates src="@raw/chat_ia" />
+        </trust-anchors>
+    </domain-config>
 </network-security-config>

@@ -7,7 +7,7 @@ class Prefs(context: Context) {
     private val p = context.getSharedPreferences("assistant", Context.MODE_PRIVATE)
 
     var server: String
-        get() = p.getString("server", DEFAULT_SERVER) ?: DEFAULT_SERVER
+        get() = (p.getString("server", DEFAULT_SERVER) ?: DEFAULT_SERVER).let { if (it == OLD_SERVER) DEFAULT_SERVER else it }
         set(v) = p.edit().putString("server", v.trim().trimEnd('/')).apply()
     var token: String
         get() = p.getString("token", "") ?: ""
@@ -47,7 +47,9 @@ class Prefs(context: Context) {
     val loggedIn get() = token.isNotEmpty()
 
     companion object {
-        const val DEFAULT_SERVER = "http://192.168.1.41:8080"
+        const val DEFAULT_SERVER = "https://192.168.1.41:8443"
+        /** Ancienne adresse en clair : remplacée d'office par le https (même serveur, même jeton). */
+        const val OLD_SERVER = "http://192.168.1.41:8080"
         const val DEFAULT_INSTRUCTIONS =
             "Tu es l'assistant personnel sur le téléphone. Réponds en français, de façon courte et claire, " +
                 "sauf si on te demande des détails. Quand une image ou une capture d'écran est jointe, décris ce qui est utile pour la question."
