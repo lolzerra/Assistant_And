@@ -109,6 +109,9 @@ fun SettingsScreen(vm: ChatViewModel, onClose: () -> Unit) {
                 }) { Text("Se connecter") }
             }
 
+            Section("Mémoire")
+            MemorySettings(vm)
+
             Section("Autorisations")
             Permissions()
 

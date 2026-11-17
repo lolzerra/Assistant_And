@@ -258,6 +258,7 @@ internal fun Bubble(vm: ChatViewModel, m: Msg) {
             SelectionContainer { Text(Markdown.render(m.text), color = colors.onBackground) }
             m.actions.forEach { PhoneCard(it) }
             m.error?.let { Text("⚠ $it", color = colors.error, fontSize = 13.sp) }
+            m.memory?.let { Text(it, color = colors.onSurfaceVariant, fontSize = 12.sp) }
             m.stats?.let { Text(it, color = colors.onSurfaceVariant, fontSize = 11.sp) }
         }
     }

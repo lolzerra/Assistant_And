@@ -27,6 +27,7 @@ data class Msg(
     val stats: String? = null,
     val pending: Boolean = false,
     val actions: List<PhoneAction> = emptyList(),  // réveil, appel, SMS… demandés par l'assistant
+    val memory: String? = null,  // « 🧠 1 souvenir ajouté » : relecture mémoire après la réponse
 )
 
 class Attachment(val label: String, val bytes: ByteArray) {
@@ -218,6 +219,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                     .put("web", prefs.web)
                     .put("label", "Assistant")
                     .put("instructions", prefs.instructions)
+                var review = 0
                 val steps = mutableListOf<String>()
                 val actions = mutableListOf<PhoneAction>()
                 api.send(prefs.conversation, body).collect { ev ->
@@ -237,6 +239,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                         }
                         ev.has("error") -> throw ApiError(ev.getString("error"))
                     }
+                    if (ev.optBoolean("done")) review = ev.optInt("memory_review", 0)
                     val stats = if (ev.optBoolean("done")) {
                         "${ev.optDouble("seconds", 0.0)} s · ${ev.optInt("tokens")} tokens · ${ev.optDouble("tok_s", 0.0)} tok/s"
                     } else messages[index].stats
@@ -246,6 +249,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 voice?.finish(reply)
                 // Réveil, appli, itinéraire… : exécutés à la fin de la réponse. Appels et SMS attendent un appui.
                 actions.filter { !it.needsConfirm }.forEach { PhoneActions.run(getApplication(), it) }
+                if (review > 0) watchMemory(review, messages[index])
             } catch (e: kotlinx.coroutines.CancellationException) {
                 speaker.stop()
                 messages[index] = messages[index].copy(pending = false, error = "Arrêté")
@@ -257,6 +261,24 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 busy = false
                 sending = null
             }
+        }
+    }
+
+    /** La mémoire est relue en arrière-plan après la réponse : on affiche ce qui a changé, s'il y a quelque chose. */
+    private fun watchMemory(id: Int, msg: Msg) = viewModelScope.launch {
+        for (wait in listOf(2000L, 3000L, 4000L, 6000L, 8000L, 10000L)) {
+            kotlinx.coroutines.delay(wait)
+            val res = runCatching { api.memoryReview(id) }.getOrElse { return@launch } ?: continue
+            fun n(key: String) = res.optJSONArray(key)?.length() ?: 0
+            val (added, changed, forgotten) = Triple(n("ajoutes"), n("modifies"), n("supprimes"))
+            val parts = listOfNotNull(
+                if (added > 0) "$added souvenir${if (added > 1) "s" else ""} ajouté${if (added > 1) "s" else ""}" else null,
+                if (changed > 0) "$changed corrigé${if (changed > 1) "s" else ""}" else null,
+                if (forgotten > 0) "$forgotten oublié${if (forgotten > 1) "s" else ""}" else null,
+            )
+            val i = messages.indexOfFirst { it === msg }
+            if (parts.isNotEmpty() && i >= 0) messages[i] = msg.copy(memory = "🧠 " + parts.joinToString(" · "))
+            return@launch
         }
     }
 
@@ -279,6 +301,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         "telephone_media" -> "🎵 Musique : ${tool.optString("action")}"
         "telephone_ne_pas_deranger" -> if (tool.optBoolean("actif")) "🔕 Ne pas déranger" else "🔔 Fin du Ne pas déranger"
         "telephone_reglages" -> "⚙ Réglages du téléphone"
+        "memoire_chercher" -> "🧠 Mémoire" + tool.optString("requete").let { if (it.isBlank()) "" else " : $it" }
         "programmer" -> "⏰ Programmé le ${tool.optString("date")} à ${tool.optString("heure")}"
         "taches_programmees" -> "⏰ Tâches programmées"
         "annuler_tache" -> "⏰ Tâche n°${tool.optString("numero")} annulée"

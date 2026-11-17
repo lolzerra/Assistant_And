@@ -77,6 +77,42 @@ class Api(private val prefs: Prefs) {
         }
     }
 
+    // ---------- Mémoire ----------
+
+    data class Memory(val id: Int, val text: String, val updated: Long)
+
+    /** Souvenirs (tous, ou ceux qui contiennent les mots de q) et état de l'interrupteur. */
+    suspend fun memory(q: String = ""): Pair<Boolean, List<Memory>> {
+        val o = JSONObject(call(request("/api/memory?q=" + URLEncoder.encode(q, "UTF-8")).get().build()))
+        val arr = o.getJSONArray("memories")
+        return o.optBoolean("enabled", true) to List(arr.length()) { i ->
+            val m = arr.getJSONObject(i)
+            Memory(m.getInt("id"), m.getString("texte"), (m.optDouble("modifie", 0.0) * 1000).toLong())
+        }
+    }
+
+    suspend fun memoryAdd(text: String) {
+        call(request("/api/memory").post(JSONObject().put("texte", text).toString().toRequestBody(json)).build())
+    }
+
+    suspend fun memoryEdit(id: Int, text: String) {
+        call(request("/api/memory/$id").put(JSONObject().put("texte", text).toString().toRequestBody(json)).build())
+    }
+
+    suspend fun memoryDelete(id: Int) {
+        call(request("/api/memory/$id").delete().build())
+    }
+
+    suspend fun memoryEnabled(on: Boolean) {
+        call(request("/api/memory_settings").put(JSONObject().put("enabled", on).toString().toRequestBody(json)).build())
+    }
+
+    /** Relecture mémoire d'un échange : null tant qu'elle tourne, sinon ce qui a changé. */
+    suspend fun memoryReview(id: Int): JSONObject? {
+        val o = JSONObject(call(request("/api/memory/review/$id").get().build()))
+        return if (o.optString("state") == "pending") null else o
+    }
+
     data class Past(val role: String, val text: String, val images: List<Int>)
 
     /** Messages d'une conversation, avec les identifiants de leurs images, pour réafficher la discussion en cours. */
