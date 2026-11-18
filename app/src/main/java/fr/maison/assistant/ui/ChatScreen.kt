@@ -264,7 +264,7 @@ internal fun Bubble(vm: ChatViewModel, m: Msg) {
     }
 }
 
-/** Avant le premier mot : petite roue, étape en cours et secondes écoulées. */
+/** Avant le premier mot : étapes passées cochées, étape en cours avec une petite roue et les secondes écoulées. */
 @Composable
 private fun Waiting(m: Msg) {
     val colors = MaterialTheme.colorScheme
@@ -274,10 +274,13 @@ private fun Waiting(m: Msg) {
             kotlinx.coroutines.delay(500)
         }
     }
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier.padding(vertical = 4.dp)) {
-        CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp, color = colors.onSurfaceVariant)
-        Text(listOfNotNull(m.status, if (m.started > 0 && seconds > 0) "$seconds s" else null).joinToString(" · ").ifEmpty { "…" },
-            color = colors.onSurfaceVariant, fontSize = 13.sp)
+    Column(Modifier.padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        m.phases.dropLast(1).forEach { Text("✓ $it", color = colors.onSurfaceVariant, fontSize = 13.sp) }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp, color = colors.onSurfaceVariant)
+            val current = m.phases.lastOrNull()?.let { "$it…" }
+            Text(listOfNotNull(current, if (m.started > 0 && seconds > 0) "$seconds s" else null).joinToString(" · ").ifEmpty { "…" },
+                color = colors.onSurfaceVariant, fontSize = 13.sp)
+        }
     }
 }

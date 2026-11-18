@@ -28,7 +28,7 @@ data class Msg(
     val pending: Boolean = false,
     val actions: List<PhoneAction> = emptyList(),  // réveil, appel, SMS… demandés par l'assistant
     val memory: String? = null,  // « 🧠 1 souvenir ajouté » : relecture mémoire après la réponse
-    val status: String? = null,  // pendant l'attente : « Lecture de la conversation… », « Réflexion… »
+    val phases: List<String> = emptyList(),  // avant le premier mot : outils, consigne, conversation… dans l'ordre
     val started: Long = 0L,      // SystemClock.elapsedRealtime() à l'envoi, pour le compteur de secondes
 )
 
@@ -209,7 +209,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         speaker.stop()
         busy = true
         messages.add(Msg(user = true, text = text, thumbs = files.mapNotNull { it.thumb }))
-        messages.add(Msg(user = false, text = "", pending = true, status = "Lecture de la conversation…",
+        messages.add(Msg(user = false, text = "", pending = true, phases = listOf("Lecture de la conversation"),
             started = android.os.SystemClock.elapsedRealtime()))
         val index = messages.lastIndex
         // Voix phrase par phrase pendant l'écriture de la réponse.
@@ -229,16 +229,24 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                     .put("label", "Assistant")
                     .put("instructions", prefs.instructions)
                 var review = 0
-                var status: String? = "Lecture de la conversation…"
+                // Étape supposée (lecture courte, le serveur ne la signale pas) : remplacée par la première étape réelle.
+                val phases = mutableListOf("Lecture de la conversation")
+                var guessed = true
+                fun phase(name: String, guess: Boolean = false) {
+                    if (guessed && !guess) { phases.clear(); guessed = false }
+                    if (phases.lastOrNull() != name) phases.add(name)
+                    if (guess) guessed = true
+                }
                 val steps = mutableListOf<String>()
                 val actions = mutableListOf<PhoneAction>()
                 api.send(prefs.conversation, body).collect { ev ->
                     when {
                         ev.has("content") -> { reply += ev.getString("content"); voice?.feed(reply) }
                         ev.has("content_reset") -> { reply = ev.getString("content_reset"); voice?.feed(reply) }
-                        ev.has("thinking") -> status = "Réflexion…"
-                        ev.has("tool") -> { steps.add(stepLabel(ev.getJSONObject("tool"))); status = null }
-                        ev.has("tool_done") -> status = "Lecture des résultats…"
+                        ev.has("phase") -> phase(ev.getString("phase"))
+                        ev.has("thinking") -> phase("Réflexion")
+                        ev.has("tool") -> { steps.add(stepLabel(ev.getJSONObject("tool"))); phases.clear(); guessed = false }
+                        ev.has("tool_done") -> phase("Lecture des résultats", guess = true)
                         ev.has("phone") -> ev.getJSONObject("phone").let { actions.add(PhoneAction(it.getString("name"), it)) }
                         ev.has("phone_query") -> {
                             // Le serveur attend le résultat (notifications, musique…) avant de continuer la réponse.
@@ -256,7 +264,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                         "${ev.optDouble("seconds", 0.0)} s · ${ev.optInt("tokens")} tokens · ${ev.optDouble("tok_s", 0.0)} tok/s"
                     } else messages[index].stats
                     messages[index] = messages[index].copy(text = reply, steps = steps.toList(), stats = stats,
-                        pending = !ev.optBoolean("done"), actions = actions.toList(), status = status)
+                        pending = !ev.optBoolean("done"), actions = actions.toList(), phases = phases.toList())
                 }
                 voice?.finish(reply)
                 // Réveil, appli, itinéraire… : exécutés à la fin de la réponse. Appels et SMS attendent un appui.

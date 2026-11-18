@@ -191,7 +191,7 @@ private fun VoiceBar(vm: ChatViewModel, onMic: () -> Unit, onKeyboard: () -> Uni
             when {
                 vm.recording -> "J'écoute…"
                 vm.transcribing -> "Transcription…"
-                vm.busy -> vm.messages.lastOrNull()?.takeIf { it.pending && it.text.isEmpty() }?.status ?: "Réponse en cours…"
+                vm.busy -> vm.messages.lastOrNull()?.takeIf { it.pending && it.text.isEmpty() }?.phases?.lastOrNull()?.let { "$it…" } ?: "Réponse en cours…"
                 else -> "Touche le micro pour parler"
             },
             color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp,
