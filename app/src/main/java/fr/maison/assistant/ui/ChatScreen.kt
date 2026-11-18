@@ -254,12 +254,30 @@ internal fun Bubble(vm: ChatViewModel, m: Msg) {
                     modifier = Modifier.clickable { open = !open }.padding(vertical = 2.dp))
                 if (open) m.steps.forEach { Text(it, color = colors.onSurfaceVariant, fontSize = 13.sp, modifier = Modifier.padding(start = 14.dp)) }
             }
-            if (m.text.isEmpty() && m.pending) Text("…", color = colors.onSurfaceVariant)
+            if (m.text.isEmpty() && m.pending) Waiting(m)
             SelectionContainer { Text(Markdown.render(m.text), color = colors.onBackground) }
             m.actions.forEach { PhoneCard(it) }
             m.error?.let { Text("⚠ $it", color = colors.error, fontSize = 13.sp) }
             m.memory?.let { Text(it, color = colors.onSurfaceVariant, fontSize = 12.sp) }
             m.stats?.let { Text(it, color = colors.onSurfaceVariant, fontSize = 11.sp) }
         }
+    }
+}
+
+/** Avant le premier mot : petite roue, étape en cours et secondes écoulées. */
+@Composable
+private fun Waiting(m: Msg) {
+    val colors = MaterialTheme.colorScheme
+    val seconds by produceState(0, m.started) {
+        while (true) {
+            value = ((android.os.SystemClock.elapsedRealtime() - m.started) / 1000).toInt()
+            kotlinx.coroutines.delay(500)
+        }
+    }
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.padding(vertical = 4.dp)) {
+        CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp, color = colors.onSurfaceVariant)
+        Text(listOfNotNull(m.status, if (m.started > 0 && seconds > 0) "$seconds s" else null).joinToString(" · ").ifEmpty { "…" },
+            color = colors.onSurfaceVariant, fontSize = 13.sp)
     }
 }

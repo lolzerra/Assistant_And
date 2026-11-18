@@ -127,6 +127,7 @@ class AssistActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         Journal.log("fenêtre assistant visible")
+        vm.warm()
         vm.uploadJournal()
     }
 

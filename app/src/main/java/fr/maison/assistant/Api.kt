@@ -143,6 +143,12 @@ class Api(private val prefs: Prefs) {
         call(request("/api/phone/result/$id").post(JSONObject().put("result", result.take(30_000)).toString().toRequestBody(json)).build())
     }
 
+    /** Préchauffage : le serveur fait lire d'avance au modèle ses consignes et ses outils. */
+    suspend fun warm(model: String, web: Boolean, instructions: String) {
+        call(request("/api/app/warm").post(JSONObject().put("model", model).put("web", web)
+            .put("instructions", instructions).toString().toRequestBody(json)).build())
+    }
+
     /** Journal de diagnostic de l'appli. */
     suspend fun journal(text: String) {
         call(request("/api/app/journal").post(text.toRequestBody("text/plain; charset=utf-8".toMediaType())).build())

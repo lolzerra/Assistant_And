@@ -28,6 +28,8 @@ data class Msg(
     val pending: Boolean = false,
     val actions: List<PhoneAction> = emptyList(),  // réveil, appel, SMS… demandés par l'assistant
     val memory: String? = null,  // « 🧠 1 souvenir ajouté » : relecture mémoire après la réponse
+    val status: String? = null,  // pendant l'attente : « Lecture de la conversation… », « Réflexion… »
+    val started: Long = 0L,      // SystemClock.elapsedRealtime() à l'envoi, pour le compteur de secondes
 )
 
 class Attachment(val label: String, val bytes: ByteArray) {
@@ -83,6 +85,12 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 .onFailure { prefs.conversation = 0 } // conversation supprimée sur le site : on repart de zéro
         }
+    }
+
+    /** À l'ouverture : le serveur prépare le modèle pendant que l'utilisateur écrit ou parle. */
+    fun warm() {
+        if (!prefs.loggedIn) return
+        viewModelScope.launch { runCatching { api.warm(prefs.model, prefs.web, prefs.instructions) } }
     }
 
     fun newConversation() {
@@ -201,7 +209,8 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         speaker.stop()
         busy = true
         messages.add(Msg(user = true, text = text, thumbs = files.mapNotNull { it.thumb }))
-        messages.add(Msg(user = false, text = "", pending = true))
+        messages.add(Msg(user = false, text = "", pending = true, status = "Lecture de la conversation…",
+            started = android.os.SystemClock.elapsedRealtime()))
         val index = messages.lastIndex
         // Voix phrase par phrase pendant l'écriture de la réponse.
         val voice = if (prefs.speak || fromVoice) speaker.stream() else null
@@ -220,13 +229,16 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                     .put("label", "Assistant")
                     .put("instructions", prefs.instructions)
                 var review = 0
+                var status: String? = "Lecture de la conversation…"
                 val steps = mutableListOf<String>()
                 val actions = mutableListOf<PhoneAction>()
                 api.send(prefs.conversation, body).collect { ev ->
                     when {
                         ev.has("content") -> { reply += ev.getString("content"); voice?.feed(reply) }
                         ev.has("content_reset") -> { reply = ev.getString("content_reset"); voice?.feed(reply) }
-                        ev.has("tool") -> steps.add(stepLabel(ev.getJSONObject("tool")))
+                        ev.has("thinking") -> status = "Réflexion…"
+                        ev.has("tool") -> { steps.add(stepLabel(ev.getJSONObject("tool"))); status = null }
+                        ev.has("tool_done") -> status = "Lecture des résultats…"
                         ev.has("phone") -> ev.getJSONObject("phone").let { actions.add(PhoneAction(it.getString("name"), it)) }
                         ev.has("phone_query") -> {
                             // Le serveur attend le résultat (notifications, musique…) avant de continuer la réponse.
@@ -244,7 +256,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                         "${ev.optDouble("seconds", 0.0)} s · ${ev.optInt("tokens")} tokens · ${ev.optDouble("tok_s", 0.0)} tok/s"
                     } else messages[index].stats
                     messages[index] = messages[index].copy(text = reply, steps = steps.toList(), stats = stats,
-                        pending = !ev.optBoolean("done"), actions = actions.toList())
+                        pending = !ev.optBoolean("done"), actions = actions.toList(), status = status)
                 }
                 voice?.finish(reply)
                 // Réveil, appli, itinéraire… : exécutés à la fin de la réponse. Appels et SMS attendent un appui.

@@ -51,6 +51,7 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         Journal.log("appli visible")
         vm.syncConversation()
+        vm.warm()
         vm.uploadJournal()
     }
 
