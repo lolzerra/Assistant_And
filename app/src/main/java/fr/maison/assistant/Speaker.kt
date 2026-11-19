@@ -7,6 +7,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 
 /**
@@ -25,6 +26,7 @@ class Speaker(private val context: Context, private val api: Api, private val sc
         private val audio = Channel<ByteArray>(2)  // au plus deux morceaux prêts d'avance
         private var spoken = 0       // caractères de la réponse déjà envoyés à la synthèse
         private var first = true
+        private lateinit var playing: Job
 
         init {
             val synth = scope.launch {
@@ -35,8 +37,13 @@ class Speaker(private val context: Context, private val api: Api, private val sc
                 }
                 audio.close()
             }
-            val play = scope.launch { for (a in audio) play(a) }
-            jobs = jobs + synth + play
+            playing = scope.launch { for (a in audio) play(a) }
+            jobs = jobs + synth + playing
+        }
+
+        /** Attend la fin de la lecture (ou son arrêt), au plus `ms` millisecondes. */
+        suspend fun awaitEnd(ms: Long) {
+            withTimeoutOrNull(ms) { playing.join() }
         }
 
         fun feed(text: String) {

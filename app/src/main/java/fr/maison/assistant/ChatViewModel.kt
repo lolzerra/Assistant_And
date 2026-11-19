@@ -267,8 +267,13 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                         pending = !ev.optBoolean("done"), actions = actions.toList(), phases = phases.toList())
                 }
                 voice?.finish(reply)
-                // Réveil, appli, itinéraire… : exécutés à la fin de la réponse. Appels et SMS attendent un appui.
-                actions.filter { !it.needsConfirm }.forEach { PhoneActions.run(getApplication(), it) }
+                // Réveil, appli, itinéraire… : exécutés une fois la réponse lue à voix haute, sinon l'appli ouverte
+                // passerait devant et couperait la voix. Appels et SMS attendent un appui.
+                val toRun = actions.filter { !it.needsConfirm }
+                if (toRun.isNotEmpty()) viewModelScope.launch {
+                    voice?.awaitEnd(60_000)
+                    toRun.forEach { PhoneActions.run(getApplication(), it) }
+                }
                 if (review > 0) watchMemory(review, messages[index])
             } catch (e: kotlinx.coroutines.CancellationException) {
                 speaker.stop()
