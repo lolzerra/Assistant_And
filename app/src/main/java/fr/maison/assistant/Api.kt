@@ -144,9 +144,9 @@ class Api(private val prefs: Prefs) {
     }
 
     /** Préchauffage : le serveur fait lire d'avance au modèle ses consignes et ses outils. */
-    suspend fun warm(model: String, web: Boolean, instructions: String) {
+    suspend fun warm(model: String, web: Boolean, instructions: String, thinkLevel: Int) {
         call(request("/api/app/warm").post(JSONObject().put("model", model).put("web", web)
-            .put("instructions", instructions).toString().toRequestBody(json)).build())
+            .put("instructions", instructions).put("think_level", thinkLevel).toString().toRequestBody(json)).build())
     }
 
     /** Journal de diagnostic de l'appli. */

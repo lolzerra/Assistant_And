@@ -90,7 +90,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     /** À l'ouverture : le serveur prépare le modèle pendant que l'utilisateur écrit ou parle. */
     fun warm() {
         if (!prefs.loggedIn) return
-        viewModelScope.launch { runCatching { api.warm(prefs.model, prefs.web, prefs.instructions) } }
+        viewModelScope.launch { runCatching { api.warm(prefs.model, prefs.web, prefs.instructions, if (prefs.think) 2 else 0) } }
     }
 
     fun newConversation() {
