@@ -79,7 +79,7 @@ class Api(private val prefs: Prefs) {
 
     // ---------- Mémoire ----------
 
-    data class Memory(val id: Int, val text: String, val updated: Long)
+    data class Memory(val id: Int, val title: String, val text: String, val updated: Long, val uses: Int)
 
     /** Souvenirs (tous, ou ceux qui contiennent les mots de q) et état de l'interrupteur. */
     suspend fun memory(q: String = ""): Pair<Boolean, List<Memory>> {
@@ -87,16 +87,20 @@ class Api(private val prefs: Prefs) {
         val arr = o.getJSONArray("memories")
         return o.optBoolean("enabled", true) to List(arr.length()) { i ->
             val m = arr.getJSONObject(i)
-            Memory(m.getInt("id"), m.getString("texte"), (m.optDouble("modifie", 0.0) * 1000).toLong())
+            Memory(m.getInt("id"), m.optString("titre"), m.getString("texte"), (m.optDouble("modifie", 0.0) * 1000).toLong(),
+                m.optInt("utilisations"))
         }
     }
 
-    suspend fun memoryAdd(text: String) {
-        call(request("/api/memory").post(JSONObject().put("texte", text).toString().toRequestBody(json)).build())
+    /** Titre vide : le serveur en tire un de la description. */
+    suspend fun memoryAdd(title: String, text: String) {
+        val body = JSONObject().put("texte", text).apply { if (title.isNotBlank()) put("titre", title) }
+        call(request("/api/memory").post(body.toString().toRequestBody(json)).build())
     }
 
-    suspend fun memoryEdit(id: Int, text: String) {
-        call(request("/api/memory/$id").put(JSONObject().put("texte", text).toString().toRequestBody(json)).build())
+    suspend fun memoryEdit(id: Int, title: String, text: String) {
+        val body = JSONObject().put("texte", text).put("titre", title)
+        call(request("/api/memory/$id").put(body.toString().toRequestBody(json)).build())
     }
 
     suspend fun memoryDelete(id: Int) {

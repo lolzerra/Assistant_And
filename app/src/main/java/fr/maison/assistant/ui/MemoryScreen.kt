@@ -30,6 +30,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import fr.maison.assistant.Api
@@ -75,6 +76,7 @@ private fun MemoryDialog(vm: ChatViewModel, onDismiss: () -> Unit) {
     var list by remember { mutableStateOf<List<Api.Memory>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var adding by remember { mutableStateOf("") }
+    var addingTitle by remember { mutableStateOf("") }
     var editing by remember { mutableStateOf<Api.Memory?>(null) }
     var reload by remember { mutableStateOf(0) }
 
@@ -92,12 +94,16 @@ private fun MemoryDialog(vm: ChatViewModel, onDismiss: () -> Unit) {
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Rechercher") })
+                OutlinedTextField(addingTitle, { addingTitle = it.take(60) }, Modifier.fillMaxWidth(), singleLine = true,
+                    label = { Text("Titre du nouveau souvenir") })
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedTextField(adding, { adding = it.take(300) }, Modifier.weight(1f), label = { Text("Ajouter un souvenir") })
+                    OutlinedTextField(adding, { adding = it.take(300) }, Modifier.weight(1f), label = { Text("Description") })
                     TextButton(enabled = adding.isNotBlank(), onClick = {
+                        val title = addingTitle.trim()
                         val text = adding.trim()
                         adding = ""
-                        act { vm.api.memoryAdd(text) }
+                        addingTitle = ""
+                        act { vm.api.memoryAdd(title, text) }
                     }) { Text("Ajouter") }
                 }
                 error?.let { Text("⚠ $it", color = MaterialTheme.colorScheme.error, fontSize = 13.sp) }
@@ -110,8 +116,9 @@ private fun MemoryDialog(vm: ChatViewModel, onDismiss: () -> Unit) {
                         items(items, key = { it.id }) { m ->
                             Row(Modifier.fillMaxWidth().clickable { editing = m }.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f)) {
+                                    if (m.title.isNotBlank()) Text(m.title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                                     Text(m.text, fontSize = 14.sp)
-                                    Text(DateUtils.getRelativeTimeSpanString(m.updated).toString(), fontSize = 11.sp,
+                                    Text(DateUtils.getRelativeTimeSpanString(m.updated).toString() + " · utilisé ${m.uses} fois", fontSize = 11.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                                 IconButton(onClick = { act { vm.api.memoryDelete(m.id) } }) { Icon(Icons.Default.Close, "Oublier") }
@@ -126,12 +133,18 @@ private fun MemoryDialog(vm: ChatViewModel, onDismiss: () -> Unit) {
 
     editing?.let { m ->
         var text by remember(m.id) { mutableStateOf(m.text) }
+        var title by remember(m.id) { mutableStateOf(m.title) }
         AlertDialog(
             onDismissRequest = { editing = null },
             title = { Text("Modifier le souvenir") },
-            text = { OutlinedTextField(text, { text = it.take(300) }, Modifier.fillMaxWidth(), minLines = 3) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(title, { title = it.take(60) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Titre") })
+                    OutlinedTextField(text, { text = it.take(300) }, Modifier.fillMaxWidth(), minLines = 3, label = { Text("Description") })
+                }
+            },
             confirmButton = {
-                TextButton(enabled = text.isNotBlank(), onClick = { editing = null; act { vm.api.memoryEdit(m.id, text.trim()) } }) { Text("Enregistrer") }
+                TextButton(enabled = text.isNotBlank(), onClick = { editing = null; act { vm.api.memoryEdit(m.id, title.trim(), text.trim()) } }) { Text("Enregistrer") }
             },
             dismissButton = { TextButton(onClick = { editing = null }) { Text("Annuler") } },
         )
