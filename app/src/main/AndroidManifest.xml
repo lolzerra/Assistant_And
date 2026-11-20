@@ -48,6 +48,14 @@
             </intent-filter>
         </activity>
 
+        <!-- Invisible : affiche la fenêtre de Google « Activer la localisation ? » avant Maps ou Waze -->
+        <activity
+            android:name=".LocationActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
         <!-- Fenêtre ouverte par l'appui long : demi-écran par-dessus l'appli en cours -->
         <activity
             android:name=".AssistActivity"

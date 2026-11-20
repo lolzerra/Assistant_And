@@ -1,15 +1,15 @@
 package fr.maison.assistant
 
-import android.app.ActivityOptions
+import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.location.LocationManager
-import android.os.Build
 import com.google.android.gms.common.api.ResolvableApiException
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.LocationSettingsRequest
 import com.google.android.gms.location.Priority
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
@@ -21,6 +21,9 @@ import kotlin.coroutines.resume
  * localisation ? » (un appui suffit). Une appli ne peut pas l'activer seule, sans cet appui.
  */
 object Location {
+    /** Demande en cours, lue par LocationActivity : fenêtre de Google et réponse attendue. */
+    @Volatile var pending: Pair<PendingIntent, CompletableDeferred<Boolean>>? = null
+
     private val NAV = listOf("maps", "map", "waze", "gps", "navigation", "itineraire", "carte", "plans")
 
     fun isNavigationApp(name: String): Boolean {
@@ -31,7 +34,7 @@ object Location {
     fun enabled(context: Context) =
         context.getSystemService(LocationManager::class.java)?.isLocationEnabled ?: true
 
-    /** Demande l'activation si besoin, puis attend la réponse (12 s au plus). */
+    /** Demande l'activation si besoin, puis attend la réponse (30 s au plus). */
     suspend fun ensure(context: Context) {
         if (enabled(context)) return
         val request = LocationSettingsRequest.Builder()
@@ -43,23 +46,21 @@ object Location {
                     .addOnCompleteListener { t -> if (c.isActive) c.resume(t.exception) }
             }
         }
-        val asked = runCatching {
-            if (error is ResolvableApiException) {
-                @Suppress("DEPRECATION")
-                // Fenêtre de Google : « Pour une meilleure expérience, activez la localisation… »
-                // Depuis Android 14, une fenêtre venant d'une autre appli (ici Google) n'a le droit de s'ouvrir que si
-                // l'on transmet explicitement notre droit d'être au premier plan ; sinon elle est bloquée sans bruit.
-                val options = if (Build.VERSION.SDK_INT >= 34) ActivityOptions.makeBasic()
-                    .setPendingIntentBackgroundActivityStartMode(ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED)
-                    .toBundle() else null
-                context.startIntentSender(error.resolution.intentSender, null,
-                    Intent.FLAG_ACTIVITY_NEW_TASK, Intent.FLAG_ACTIVITY_NEW_TASK, 0, options)
-                true
-            } else false
-        }.onFailure { Journal.log("localisation : fenêtre refusée par Android (${it.message})") }.getOrDefault(false)
-        Journal.log("localisation coupée : ${if (asked) "fenêtre d'activation demandée" else "pas de fenêtre possible (${error?.javaClass?.simpleName ?: "délai dépassé"})"}")
-        if (!asked) return  // Maps et Waze proposeront eux-mêmes de l'activer
-        withTimeoutOrNull(12_000) { while (!enabled(context)) delay(300) }
+        if (error !is ResolvableApiException) {
+            Journal.log("localisation coupée : pas de fenêtre possible (${error?.javaClass?.simpleName ?: "délai dépassé"})")
+            return  // Maps et Waze proposeront eux-mêmes de l'activer
+        }
+        // La fenêtre est ouverte depuis une Activity à nous (invisible) : lancée depuis le service ou l'application,
+        // Android la bloque sans rien dire.
+        val answer = CompletableDeferred<Boolean>()
+        pending = error.resolution to answer
+        val shown = runCatching {
+            context.startActivity(Intent(context, LocationActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }.onFailure { Journal.log("localisation : fenêtre impossible (${it.message})") }.isSuccess
+        val ok = if (shown) withTimeoutOrNull(30_000) { answer.await() } else null
+        pending = null
+        Journal.log("localisation coupée : fenêtre d'activation ${when (ok) { true -> "acceptée"; false -> "refusée"; null -> "sans réponse" }}")
+        if (ok == true) withTimeoutOrNull(3_000) { while (!enabled(context)) delay(200) }
         delay(300)  // le temps que la fenêtre se ferme, pour que l'appli s'ouvre bien devant
     }
 }
