@@ -37,6 +37,11 @@ class PhoneAction(val name: String, val args: JSONObject) {
     var status by mutableStateOf<String?>(null)
     val needsConfirm get() = name == "telephone_appeler" || name == "telephone_sms" || name == "telephone_repondre"
     fun arg(key: String) = args.optString(key).trim()
+    /** Musique demandée pendant une réponse lue à voix haute : lancée après la voix, pour ne pas la couper. */
+    var later = false
+    /** Itinéraire ou appli de navigation : la localisation doit être active. */
+    val needsLocation get() = name == "telephone_itineraire" ||
+        (name == "telephone_ouvrir_appli" && Location.isNavigationApp(arg("nom")))
 }
 
 data class Contact(val name: String, val number: String, val kind: String)

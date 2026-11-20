@@ -26,9 +26,16 @@ object Music {
     fun installed(context: Context): Boolean =
         runCatching { context.packageManager.getPackageInfo(PACKAGE, 0) }.isSuccess
 
+    /** Réponse du lecteur : texte pour le modèle, statut affiché sous la réponse. */
+    class Result(val text: String, val shown: String, val status: String, val message: String, val suggestions: List<String>)
+
     /** Renvoie (texte pour le modèle, statut affiché). */
-    fun play(context: Context, query: String, type: String): Pair<String, String> {
-        if (!installed(context)) return "Erreur : le lecteur App Streaming n'est pas installé sur le téléphone." to "⚠ App Streaming absent"
+    fun play(context: Context, query: String, type: String): Pair<String, String> =
+        result(context, query, type).let { it.text to it.shown }
+
+    fun result(context: Context, query: String, type: String): Result {
+        if (!installed(context)) return Result("Erreur : le lecteur App Streaming n'est pas installé sur le téléphone.",
+            "⚠ App Streaming absent", "erreur", "App Streaming n'est pas installé.", emptyList())
         val intent = Intent(MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH)
             .setClassName(PACKAGE, "$PACKAGE.PlayFromSearchActivity")
             .putExtra(SearchManager.QUERY, query)
@@ -44,8 +51,8 @@ object Music {
         }
         Journal.log("musique : « $query » ($type)")
         val r = request(context, intent)
-            ?: return "Commande envoyée au lecteur, sans confirmation (pas de réponse en 10 s) : ne promets pas que ça joue." to
-                "🎵 Envoyé au lecteur"
+            ?: return Result("Commande envoyée au lecteur, sans confirmation (pas de réponse en 10 s) : ne promets pas que ça joue.",
+                "🎵 Envoyé au lecteur", "ok", "", emptyList())
         val status = r.getString("status").orEmpty()
         val message = r.getString("message").orEmpty()
         val now = r.getString("now_playing")
@@ -61,7 +68,7 @@ object Music {
             "introuvable" -> "🎵 ${message.ifBlank { "Introuvable" }}"
             else -> "⚠ ${message.ifBlank { "Le lecteur n'a pas pu lancer la musique" }}"
         }
-        return text to shown
+        return Result(text, shown, status, message, suggestions)
     }
 
     fun playlists(context: Context): Pair<String, String> {

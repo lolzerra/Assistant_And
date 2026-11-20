@@ -206,6 +206,9 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
         val files = attachments.toList()
+        // Résultat de la musique lancée après la voix (« introuvable », suggestions) : donné au modèle avec ce message.
+        val note = playNote?.takeIf { android.os.SystemClock.elapsedRealtime() - it.first < 180_000 }?.second
+        playNote = null
         input = ""
         attachments.clear()
         notice = null
@@ -224,7 +227,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 shown = prefs.conversation
                 val ids = files.mapIndexed { i, a -> api.uploadImage("${a.label.lowercase()}-${i + 1}.jpg", a.bytes) }
                 val body = JSONObject()
-                    .put("content", text)
+                    .put("content", if (note != null) "($note)\n\n$text" else text)
                     .put("attachments", JSONArray(ids))
                     .put("model", prefs.model)
                     .put("think_level", if (prefs.think) 2 else 0)
@@ -255,7 +258,13 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                             // Le serveur attend le résultat (notifications, musique…) avant de continuer la réponse.
                             val q = ev.getJSONObject("phone_query")
                             val a = PhoneAction(q.getString("name"), q)
-                            val (result, status) = withContext(Dispatchers.IO) { PhoneActions.query(getApplication(), a) }
+                            val (result, status) = if (voice != null && a.name == "telephone_musique") {
+                                // Lancée après la réponse vocale : sinon la musique démarre, se coupe pour la voix, puis reprend.
+                                a.later = true
+                                "La musique sera lancée juste après ta réponse vocale. Annonce-le en une phrase courte " +
+                                    "(sans affirmer le titre exact) ; si le lecteur ne trouve pas, l'utilisateur sera prévenu." to
+                                    "🎵 Lancement après la réponse…"
+                            } else withContext(Dispatchers.IO) { PhoneActions.query(getApplication(), a) }
                             a.status = status
                             actions.add(a)
                             runCatching { api.phoneResult(q.getString("id"), result) }
@@ -272,10 +281,16 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 voice?.finish(reply)
                 // Réveil, appli, itinéraire… : exécutés une fois la réponse lue à voix haute, sinon l'appli ouverte
                 // passerait devant et couperait la voix. Appels et SMS attendent un appui.
-                val toRun = actions.filter { !it.needsConfirm }
+                val toRun = actions.filter { !it.needsConfirm && (it.status == null || it.later) }
                 if (toRun.isNotEmpty()) viewModelScope.launch {
                     voice?.awaitEnd(60_000)
-                    toRun.forEach { PhoneActions.run(getApplication(), it) }
+                    toRun.forEach { a ->
+                        when {
+                            a.later -> playLater(a)
+                            a.needsLocation -> { Location.ensure(getApplication()); PhoneActions.run(getApplication(), a) }
+                            else -> PhoneActions.run(getApplication(), a)
+                        }
+                    }
                 }
                 if (review > 0) watchMemory(review, messages[index])
             } catch (e: kotlinx.coroutines.CancellationException) {
@@ -290,6 +305,22 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 sending = null
             }
         }
+    }
+
+    private var playNote: Pair<Long, String>? = null
+
+    /** Musique lancée après la réponse vocale. Si le lecteur ne trouve pas, on le dit à voix haute. */
+    private suspend fun playLater(a: PhoneAction) {
+        val query = a.arg("recherche")
+        val r = withContext(Dispatchers.IO) { Music.result(getApplication(), query, a.arg("type")) }
+        a.status = r.shown
+        if (r.status == "ok") return
+        val spoken = buildString {
+            append(if (r.status == "introuvable") "Je n'ai pas trouvé « $query »." else (r.message.ifBlank { "Le lecteur n'a pas pu lancer la musique." }))
+            r.suggestions.firstOrNull()?.let { append(" Tu voulais dire $it ?") }
+        }
+        playNote = android.os.SystemClock.elapsedRealtime() to "Note du lecteur de musique, après ta dernière réponse : ${r.text}"
+        speaker.speak(spoken)
     }
 
     /** La mémoire est relue en arrière-plan après la réponse : on affiche ce qui a changé, s'il y a quelque chose. */
