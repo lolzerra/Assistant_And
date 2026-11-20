@@ -39,6 +39,8 @@ class PhoneAction(val name: String, val args: JSONObject) {
     fun arg(key: String) = args.optString(key).trim()
     /** Musique demandée pendant une réponse lue à voix haute : lancée après la voix, pour ne pas la couper. */
     var later = false
+    /** Aléatoire demandé avec la musique : true, false, ou null si l'utilisateur n'a rien précisé. */
+    val shuffle get() = args.takeIf { it.has("aleatoire") }?.optBoolean("aleatoire")
     /** Itinéraire ou appli de navigation : la localisation doit être active. */
     val needsLocation get() = name == "telephone_itineraire" ||
         (name == "telephone_ouvrir_appli" && Location.isNavigationApp(arg("nom")))
@@ -180,8 +182,9 @@ object PhoneActions {
             "telephone_media" -> media(context, a.arg("action"), a.args.optInt("volume", -1)).let { it to "🎵 $it" }
             "telephone_ne_pas_deranger" -> dnd(context, a.args.optBoolean("actif")).let { it to it }
             "telephone_reglages" -> settings(context, a).let { it to it }
-            "telephone_musique" -> Music.play(context, a.arg("recherche"), a.arg("type"))
+            "telephone_musique" -> Music.play(context, a.arg("recherche"), a.arg("type"), a.shuffle)
             "telephone_playlists" -> Music.playlists(context)
+            "telephone_aleatoire" -> Music.shuffle(context, a.args.takeIf { it.has("actif") }?.optBoolean("actif"))
             else -> "Erreur : action inconnue" to "⚠ Action inconnue"
         }
     } catch (e: Exception) {

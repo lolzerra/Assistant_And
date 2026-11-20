@@ -21,6 +21,7 @@ import java.util.concurrent.atomic.AtomicInteger
 object Music {
     const val PACKAGE = "com.lolzerra.appstreaming"
     private const val RESULT = "fr.maison.assistant.extra.RESULT"
+    private const val SHUFFLE = "fr.maison.assistant.extra.SHUFFLE"
     private val counter = AtomicInteger()
 
     fun installed(context: Context): Boolean =
@@ -30,10 +31,10 @@ object Music {
     class Result(val text: String, val shown: String, val status: String, val message: String, val suggestions: List<String>)
 
     /** Renvoie (texte pour le modèle, statut affiché). */
-    fun play(context: Context, query: String, type: String): Pair<String, String> =
-        result(context, query, type).let { it.text to it.shown }
+    fun play(context: Context, query: String, type: String, shuffle: Boolean?): Pair<String, String> =
+        result(context, query, type, shuffle).let { it.text to it.shown }
 
-    fun result(context: Context, query: String, type: String): Result {
+    fun result(context: Context, query: String, type: String, shuffle: Boolean?): Result {
         if (!installed(context)) return Result("Erreur : le lecteur App Streaming n'est pas installé sur le téléphone.",
             "⚠ App Streaming absent", "erreur", "App Streaming n'est pas installé.", emptyList())
         val intent = Intent(MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH)
@@ -49,7 +50,8 @@ object Music {
             "album" -> intent.putExtra(MediaStore.EXTRA_MEDIA_FOCUS, MediaStore.Audio.Albums.ENTRY_CONTENT_TYPE)
                 .putExtra(MediaStore.EXTRA_MEDIA_ALBUM, query)
         }
-        Journal.log("musique : « $query » ($type)")
+        shuffle?.let { intent.putExtra(SHUFFLE, it) }
+        Journal.log("musique : « $query » ($type${shuffle?.let { if (it) ", aléatoire" else ", dans l'ordre" }.orEmpty()})")
         val r = request(context, intent)
             ?: return Result("Commande envoyée au lecteur, sans confirmation (pas de réponse en 10 s) : ne promets pas que ça joue.",
                 "🎵 Envoyé au lecteur", "ok", "", emptyList())
@@ -69,6 +71,19 @@ object Music {
             else -> "⚠ ${message.ifBlank { "Le lecteur n'a pas pu lancer la musique" }}"
         }
         return Result(text, shown, status, message, suggestions)
+    }
+
+    /** Active (true), coupe (false) ou inverse (null) l'aléatoire, sans relancer la musique. */
+    fun shuffle(context: Context, on: Boolean?): Pair<String, String> {
+        if (!installed(context)) return "Erreur : le lecteur App Streaming n'est pas installé sur le téléphone." to "⚠ App Streaming absent"
+        val intent = Intent("$PACKAGE.action.SHUFFLE").setClassName(PACKAGE, "$PACKAGE.ShuffleActivity")
+        on?.let { intent.putExtra(SHUFFLE, it) }
+        Journal.log("musique : aléatoire ${on ?: "inversé"}")
+        val r = request(context, intent) ?: return "Erreur : le lecteur n'a pas répondu (version trop ancienne ?)." to "⚠ Pas de réponse du lecteur"
+        val status = r.getString("status").orEmpty()
+        val message = r.getString("message").orEmpty().ifBlank { if (status == "ok") "Fait" else "Impossible" }
+        return "${if (status == "ok") "OK" else status.ifBlank { "erreur" }} : $message" to
+            "${if (status == "ok") "🔀" else "⚠"} $message"
     }
 
     fun playlists(context: Context): Pair<String, String> {

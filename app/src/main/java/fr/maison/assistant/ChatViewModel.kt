@@ -312,7 +312,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     /** Musique lancée après la réponse vocale. Si le lecteur ne trouve pas, on le dit à voix haute. */
     private suspend fun playLater(a: PhoneAction) {
         val query = a.arg("recherche")
-        val r = withContext(Dispatchers.IO) { Music.result(getApplication(), query, a.arg("type")) }
+        val r = withContext(Dispatchers.IO) { Music.result(getApplication(), query, a.arg("type"), a.shuffle) }
         a.status = r.shown
         if (r.status == "ok") return
         val spoken = buildString {
@@ -360,7 +360,10 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         "telephone_media" -> "🎵 Musique : ${tool.optString("action")}"
         "telephone_ne_pas_deranger" -> if (tool.optBoolean("actif")) "🔕 Ne pas déranger" else "🔔 Fin du Ne pas déranger"
         "telephone_reglages" -> "⚙ Réglages du téléphone"
-        "telephone_musique" -> "🎵 Lecture : ${tool.optString("recherche").ifBlank { "reprise" }}"
+        "telephone_musique" -> "🎵 Lecture : ${tool.optString("recherche").ifBlank { "reprise" }}" +
+            when (tool.opt("aleatoire")) { true -> " (aléatoire)"; false -> " (dans l'ordre)"; else -> "" }
+        "telephone_aleatoire" -> "🔀 Aléatoire : " +
+            when (tool.opt("actif")) { true -> "activé"; false -> "coupé"; else -> "inversé" }
         "telephone_playlists" -> "🎵 Liste des playlists"
         "memoire_chercher" -> "🧠 Mémoire" + tool.optString("requete").let { if (it.isBlank()) "" else " : $it" }
         "programmer" -> "⏰ Programmé le ${tool.optString("date")} à ${tool.optString("heure")}"
