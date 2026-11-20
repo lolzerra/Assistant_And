@@ -175,6 +175,8 @@ object PhoneActions {
             "telephone_media" -> media(context, a.arg("action"), a.args.optInt("volume", -1)).let { it to "🎵 $it" }
             "telephone_ne_pas_deranger" -> dnd(context, a.args.optBoolean("actif")).let { it to it }
             "telephone_reglages" -> settings(context, a).let { it to it }
+            "telephone_musique" -> Music.play(context, a.arg("recherche"), a.arg("type"))
+            "telephone_playlists" -> Music.playlists(context)
             else -> "Erreur : action inconnue" to "⚠ Action inconnue"
         }
     } catch (e: Exception) {

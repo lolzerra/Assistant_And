@@ -37,7 +37,15 @@ class Speaker(private val context: Context, private val api: Api, private val sc
                 }
                 audio.close()
             }
-            playing = scope.launch { for (a in audio) play(a) }
+            val key = Any()
+            playing = scope.launch {
+                try {
+                    // Pendant la voix, la musique se met en pause, puis reprend toute seule.
+                    for (a in audio) { Focus.hold(context, key); play(a) }
+                } finally {
+                    Focus.release(context, key)
+                }
+            }
             jobs = jobs + synth + playing
         }
 

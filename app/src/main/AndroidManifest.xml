@@ -17,6 +17,7 @@
 
     <!-- « Ouvre Spotify » : voir les applis installées qui ont une icône -->
     <queries>
+        <package android:name="com.lolzerra.appstreaming" />
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />

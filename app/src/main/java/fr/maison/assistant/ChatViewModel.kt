@@ -166,6 +166,8 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         }
         speaker.stop()
         recording = true
+        val micKey = Any()
+        Focus.hold(getApplication(), micKey)  // la musique se met en pause pendant l'écoute
         viewModelScope.launch {
             try {
                 val wav = recorder.record()
@@ -185,6 +187,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             } finally {
                 recording = false
                 transcribing = false
+                Focus.release(getApplication(), micKey)
             }
         }
     }
@@ -326,6 +329,8 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         "telephone_media" -> "🎵 Musique : ${tool.optString("action")}"
         "telephone_ne_pas_deranger" -> if (tool.optBoolean("actif")) "🔕 Ne pas déranger" else "🔔 Fin du Ne pas déranger"
         "telephone_reglages" -> "⚙ Réglages du téléphone"
+        "telephone_musique" -> "🎵 Lecture : ${tool.optString("recherche").ifBlank { "reprise" }}"
+        "telephone_playlists" -> "🎵 Liste des playlists"
         "memoire_chercher" -> "🧠 Mémoire" + tool.optString("requete").let { if (it.isBlank()) "" else " : $it" }
         "programmer" -> "⏰ Programmé le ${tool.optString("date")} à ${tool.optString("heure")}"
         "taches_programmees" -> "⏰ Tâches programmées"
