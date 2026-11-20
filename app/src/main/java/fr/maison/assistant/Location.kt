@@ -1,8 +1,10 @@
 package fr.maison.assistant
 
+import android.app.ActivityOptions
 import android.content.Context
 import android.content.Intent
 import android.location.LocationManager
+import android.os.Build
 import com.google.android.gms.common.api.ResolvableApiException
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationServices
@@ -43,13 +45,19 @@ object Location {
         }
         val asked = runCatching {
             if (error is ResolvableApiException) {
+                @Suppress("DEPRECATION")
                 // Fenêtre de Google : « Pour une meilleure expérience, activez la localisation… »
+                // Depuis Android 14, une fenêtre venant d'une autre appli (ici Google) n'a le droit de s'ouvrir que si
+                // l'on transmet explicitement notre droit d'être au premier plan ; sinon elle est bloquée sans bruit.
+                val options = if (Build.VERSION.SDK_INT >= 34) ActivityOptions.makeBasic()
+                    .setPendingIntentBackgroundActivityStartMode(ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED)
+                    .toBundle() else null
                 context.startIntentSender(error.resolution.intentSender, null,
-                    Intent.FLAG_ACTIVITY_NEW_TASK, Intent.FLAG_ACTIVITY_NEW_TASK, 0)
+                    Intent.FLAG_ACTIVITY_NEW_TASK, Intent.FLAG_ACTIVITY_NEW_TASK, 0, options)
                 true
             } else false
-        }.getOrDefault(false)
-        Journal.log("localisation coupée : ${if (asked) "fenêtre d'activation affichée" else "pas de fenêtre possible"}")
+        }.onFailure { Journal.log("localisation : fenêtre refusée par Android (${it.message})") }.getOrDefault(false)
+        Journal.log("localisation coupée : ${if (asked) "fenêtre d'activation demandée" else "pas de fenêtre possible (${error?.javaClass?.simpleName ?: "délai dépassé"})"}")
         if (!asked) return  // Maps et Waze proposeront eux-mêmes de l'activer
         withTimeoutOrNull(12_000) { while (!enabled(context)) delay(300) }
         delay(300)  // le temps que la fenêtre se ferme, pour que l'appli s'ouvre bien devant
