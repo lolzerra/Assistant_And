@@ -39,7 +39,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AddComment
@@ -255,7 +254,7 @@ internal fun Bubble(vm: ChatViewModel, m: Msg) {
                 if (open) m.steps.forEach { Text(it, color = colors.onSurfaceVariant, fontSize = 13.sp, modifier = Modifier.padding(start = 14.dp)) }
             }
             if (m.text.isEmpty() && m.pending) Waiting(m)
-            SelectionContainer { Text(Markdown.render(m.text), color = colors.onBackground) }
+            RichText(vm, m.text)
             m.actions.forEach { PhoneCard(it) }
             m.error?.let { Text("⚠ $it", color = colors.error, fontSize = 13.sp) }
             m.memory?.let { Text(it, color = colors.onSurfaceVariant, fontSize = 12.sp) }

@@ -153,6 +153,11 @@ class Api(private val prefs: Prefs) {
             .put("instructions", instructions).put("think_level", thinkLevel).toString().toRequestBody(json)).build())
     }
 
+    /** Image trouvée par image_search, gardée par le site (chemin /api/web_images/….jpg). */
+    suspend fun webImage(path: String): ByteArray = withContext(Dispatchers.IO) {
+        http.newCall(request(path).get().build()).execute().checked().use { it.body!!.bytes() }
+    }
+
     /** Clé qui signe les alertes du site (veille…) relayées par Home Assistant. */
     suspend fun alertKey(): String = JSONObject(call(request("/api/app/alert_key").get().build())).getString("key")
 

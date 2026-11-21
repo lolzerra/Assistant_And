@@ -351,6 +351,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun stepLabel(tool: JSONObject): String = when (tool.optString("name")) {
         "web_search" -> "🔎 Recherche : ${tool.optString("query")}"
+        "image_search" -> "🖼️ Images : ${tool.optString("query")}"
         "fetch_page" -> "📄 Page lue : " + (runCatching { java.net.URI(tool.optString("url")).host?.removePrefix("www.") }.getOrNull() ?: "page web")
         "ha_appareils" -> "🏠 Appareils" + tool.optString("recherche").let { if (it.isBlank()) "" else " : $it" }
         "ha_action" -> "🏠 ${tool.optString("action")} → ${tool.optString("entites")}"
