@@ -153,6 +153,13 @@ class Api(private val prefs: Prefs) {
             .put("instructions", instructions).put("think_level", thinkLevel).toString().toRequestBody(json)).build())
     }
 
+    /** Clé qui signe les alertes du site (veille…) relayées par Home Assistant. */
+    suspend fun alertKey(): String = JSONObject(call(request("/api/app/alert_key").get().build())).getString("key")
+
+    suspend fun alertAck() {
+        call(request("/api/app/alert_ack").post("".toRequestBody(json)).build())
+    }
+
     /** Journal de diagnostic de l'appli. */
     suspend fun journal(text: String) {
         call(request("/api/app/journal").post(text.toRequestBody("text/plain; charset=utf-8".toMediaType())).build())

@@ -44,6 +44,14 @@ class Prefs(context: Context) {
         get() = p.getInt("conversation", 0)
         set(v) = p.edit().putInt("conversation", v).apply()
 
+    /** Clé du compte qui signe les alertes relayées par Home Assistant (jamais affichée). */
+    var alertKey: String
+        get() = p.getString("alert_key", "") ?: ""
+        set(v) = p.edit().putString("alert_key", v).apply()
+    var alertRelayConfirmed: Boolean
+        get() = p.getBoolean("alert_relay_ok", false)
+        set(v) = p.edit().putBoolean("alert_relay_ok", v).apply()
+
     val loggedIn get() = token.isNotEmpty()
 
     companion object {

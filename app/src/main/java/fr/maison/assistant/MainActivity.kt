@@ -3,6 +3,7 @@ package fr.maison.assistant
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -26,6 +27,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         Journal.log("appli ouverte (restaurée : ${savedInstanceState != null})")
         forgetOldCapture(intent)
+        openFromAlert(intent)
+        askNotifications()
         enableEdgeToEdge()
         setContent {
             MaterialTheme(colorScheme = Palette) {
@@ -40,6 +43,23 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         forgetOldCapture(intent)
+        openFromAlert(intent)
+    }
+
+    /** Notification d'alerte touchée : on ouvre la conversation concernée. */
+    private fun openFromAlert(intent: Intent?) {
+        val cid = intent?.getIntExtra(EXTRA_CONVERSATION, 0) ?: 0
+        if (cid == 0) return
+        intent?.removeExtra(EXTRA_CONVERSATION)
+        Journal.log("ouverture depuis une alerte : conversation $cid")
+        vm.openConversation(cid)
+    }
+
+    /** Android 13+ : les alertes de la veille ont besoin du droit d'afficher des notifications. */
+    private fun askNotifications() {
+        if (Build.VERSION.SDK_INT >= 33 && vm.prefs.loggedIn &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 7)
     }
 
     /** Ouverture normale (icône, retour à l'appli) : une capture d'un appel précédent n'est plus proposée. */
@@ -50,6 +70,7 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         Journal.log("appli visible")
+        vm.syncAlertKey()
         vm.syncConversation()
         vm.warm()
         vm.uploadJournal()
@@ -66,6 +87,7 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         const val EXTRA_FROM_ASSIST = "from_assist"
+        const val EXTRA_CONVERSATION = "conversation"
 
         val Palette = darkColorScheme(
             primary = Color(0xFF7C6CFF),

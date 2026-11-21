@@ -2,6 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- Mises à jour : installer l'APK téléchargé depuis les Releases GitHub -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
@@ -49,6 +50,15 @@
         </activity>
 
         <!-- Invisible : affiche la fenêtre de Google « Activer la localisation ? » avant Maps ou Waze -->
+        <!-- Alertes du site relayées par l'appli Home Assistant (signées : voir AlertReceiver) -->
+        <receiver
+            android:name=".AlertReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="fr.maison.assistant.action.ALERTE" />
+            </intent-filter>
+        </receiver>
+
         <activity
             android:name=".LocationActivity"
             android:excludeFromRecents="true"

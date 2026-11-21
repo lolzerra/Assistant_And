@@ -67,6 +67,14 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Affiche la conversation en cours si l'assistant en a ouvert une autre pendant ce temps. */
+    /** Récupère la clé des alertes une fois connecté (et après une reconnexion, qui l'efface). */
+    fun syncAlertKey() {
+        if (!prefs.loggedIn || prefs.alertKey.isNotEmpty()) return
+        viewModelScope.launch {
+            runCatching { api.alertKey() }.onSuccess { prefs.alertKey = it; Journal.log("clé des alertes reçue") }
+        }
+    }
+
     fun syncConversation() {
         if (busy || prefs.conversation == shown) return
         if (prefs.conversation == 0) newConversation() else loadConversation()
@@ -385,6 +393,8 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     fun logout() = viewModelScope.launch {
         api.logout()
         prefs.token = ""
+        prefs.alertKey = ""  // la clé des alertes est celle du compte
+        prefs.alertRelayConfirmed = false
         prefs.username = ""
         prefs.conversation = 0
         messages.clear()
