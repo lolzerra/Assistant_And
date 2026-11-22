@@ -356,6 +356,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         "ha_appareils" -> "🏠 Appareils" + tool.optString("recherche").let { if (it.isBlank()) "" else " : $it" }
         "ha_action" -> "🏠 ${tool.optString("action")} → ${tool.optString("entites")}"
         "ha_notifier" -> "📱 Notification : ${tool.optString("telephone")}"
+        "ha_liste" -> "🛒 Liste de courses" + tool.optString("articles").let { if (it.isBlank()) "" else " : $it" }
         "telephone_reveil" -> "⏰ Réveil ${tool.optString("heure")}"
         "telephone_minuteur" -> "⏱ Minuteur"
         "telephone_ouvrir_appli" -> "📱 Ouvrir ${tool.optString("nom")}"
