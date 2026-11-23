@@ -26,6 +26,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
+import kotlinx.coroutines.delay
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.Tab
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -115,40 +119,62 @@ private fun Choice(icon: androidx.compose.ui.graphics.vector.ImageVector, title:
 @Composable
 private fun SavedDialog(vm: ChatViewModel, onDismiss: () -> Unit) {
     val scope = rememberCoroutineScope()
+    var tab by remember { mutableStateOf(0) }  // 0 : Assistant, 1 : Globales
+    var query by remember { mutableStateOf("") }
     var list by remember { mutableStateOf<List<Api.Saved>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(Unit) {
-        runCatching { vm.savedList() }.onSuccess { list = it }.onFailure { error = it.message ?: "Erreur" }
+    LaunchedEffect(tab, query) {
+        if (tab == 1) delay(250)
+        error = null
+        runCatching { if (tab == 0) vm.savedList() else vm.allList(query.trim()) }
+            .onSuccess { list = it }.onFailure { error = it.message ?: "Erreur" }
     }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Conversations enregistrées") },
         text = {
-            val items = list
-            when {
-                error != null -> Text("⚠ $error", color = MaterialTheme.colorScheme.error)
-                items == null -> Text("Chargement…")
-                items.isEmpty() -> Text("Aucune pour l'instant : ⋮ → Enregistrer la conversation.")
-                else -> LazyColumn(Modifier.heightIn(max = 420.dp)) {
-                    items(items, key = { it.id }) { c ->
-                        Row(
-                            Modifier.fillMaxWidth().clickable { onDismiss(); vm.openConversation(c.id) }.padding(vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column(Modifier.weight(1f)) {
-                                Text(c.title, fontSize = 15.sp, maxLines = 2)
-                                val ago = DateUtils.getRelativeTimeSpanString(c.updated).toString()
-                                Text("$ago · ${c.count} messages" + if (c.site) " · aussi sur le site" else "",
-                                    fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            // Retire de cette liste ; une conversation partagée avec le site y reste.
-                            IconButton(onClick = {
-                                scope.launch {
-                                    runCatching { vm.forget(c.id) }
-                                        .onSuccess { list = list?.filter { it.id != c.id } }
-                                        .onFailure { error = it.message }
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                TabRow(selectedTabIndex = tab) {
+                    Tab(selected = tab == 0, onClick = { if (tab != 0) { tab = 0; list = null } }, text = { Text("Assistant") })
+                    Tab(selected = tab == 1, onClick = { if (tab != 1) { tab = 1; list = null } }, text = { Text("Globales") })
+                }
+                if (tab == 1) OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth(), singleLine = true,
+                    label = { Text("Rechercher un titre") })
+                val items = list
+                when {
+                    error != null -> Text("⚠ $error", color = MaterialTheme.colorScheme.error)
+                    items == null -> Text("Chargement…")
+                    items.isEmpty() -> Text(
+                        if (tab == 0) "Aucune pour l'instant : ⋮ → Enregistrer la conversation."
+                        else if (query.isBlank()) "Aucune conversation." else "Aucun titre ne correspond.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    else -> LazyColumn(Modifier.heightIn(max = 420.dp)) {
+                        items(items, key = { it.id }) { c ->
+                            Row(
+                                Modifier.fillMaxWidth().clickable { onDismiss(); vm.openConversation(c.id) }.padding(vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    val icon = when (c.type) { "veille" -> "📰 "; "contexte" -> if (c.title.startsWith("🧭")) "" else "🧭 "; else -> "" }
+                                    Text(icon + c.title, fontSize = 15.sp, maxLines = 2)
+                                    val ago = DateUtils.getRelativeTimeSpanString(c.updated).toString()
+                                    val where = when {
+                                        tab == 0 -> if (c.site) " · aussi sur le site" else ""
+                                        c.site -> " · site"
+                                        else -> " · assistant"
+                                    }
+                                    Text("$ago · ${c.count} messages$where" + if (tab == 1 && c.model.isNotBlank()) " · ${c.model}" else "",
+                                        fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
-                            }) { Icon(Icons.Default.Close, "Retirer de la liste") }
+                                // Assistant : retire de cette liste ; une conversation partagée avec le site y reste.
+                                if (tab == 0) IconButton(onClick = {
+                                    scope.launch {
+                                        runCatching { vm.forget(c.id) }
+                                            .onSuccess { list = list?.filter { it.id != c.id } }
+                                            .onFailure { error = it.message }
+                                    }
+                                }) { Icon(Icons.Default.Close, "Retirer de la liste") }
+                            }
                         }
                     }
                 }

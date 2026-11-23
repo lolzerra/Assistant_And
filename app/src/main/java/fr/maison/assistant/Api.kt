@@ -67,7 +67,18 @@ class Api(private val prefs: Prefs) {
         call(request("/api/conversations/$conversation/save").post(JSONObject().put("where", where).toString().toRequestBody(json)).build())
     }
 
-    data class Saved(val id: Int, val title: String, val updated: Long, val site: Boolean, val count: Int)
+    data class Saved(val id: Int, val title: String, val updated: Long, val site: Boolean, val count: Int,
+                     val model: String = "", val type: String = "")
+
+    /** Onglet « Globales » : toutes les conversations du compte (site et appli), filtrées par titre. */
+    suspend fun allConversations(q: String = ""): List<Saved> {
+        val arr = JSONArray(call(request("/api/app/conversations?q=" + URLEncoder.encode(q, "UTF-8")).get().build()))
+        return List(arr.length()) { i ->
+            val o = arr.getJSONObject(i)
+            Saved(o.getInt("id"), o.optString("title"), (o.optDouble("updated_at", 0.0) * 1000).toLong(), o.optBoolean("site"),
+                o.optInt("n"), if (o.isNull("model")) "" else o.optString("model"), o.optString("type"))
+        }
+    }
 
     suspend fun saved(): List<Saved> {
         val arr = JSONArray(call(request("/api/app/saved").get().build()))

@@ -131,6 +131,8 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
     suspend fun savedList(): List<Api.Saved> = api.saved()
 
+    suspend fun allList(q: String = ""): List<Api.Saved> = api.allConversations(q)
+
     suspend fun forget(id: Int) = api.save(id, "aucun")
 
     fun openConversation(id: Int) {
