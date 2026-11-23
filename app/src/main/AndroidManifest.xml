@@ -59,6 +59,10 @@
             </intent-filter>
         </receiver>
 
+        <receiver
+            android:name=".MemoryActionReceiver"
+            android:exported="false" />
+
         <activity
             android:name=".LocationActivity"
             android:excludeFromRecents="true"

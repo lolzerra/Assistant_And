@@ -2,6 +2,9 @@ package fr.maison.assistant.ui
 
 import android.text.format.DateUtils
 import androidx.compose.foundation.clickable
+import androidx.compose.material3.Surface
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -30,6 +33,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import androidx.core.app.NotificationManagerCompat
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -44,12 +52,14 @@ fun MemorySettings(vm: ChatViewModel) {
     val scope = rememberCoroutineScope()
     var enabled by remember { mutableStateOf<Boolean?>(null) }
     var count by remember { mutableStateOf(0) }
+    var waiting by remember { mutableStateOf(0) }
     var open by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(open) {
         if (!open && vm.prefs.loggedIn) runCatching { vm.api.memory() }
             .onSuccess { (on, list) -> enabled = on; count = list.size }
             .onFailure { error = it.message }
+        if (!open && vm.prefs.loggedIn) runCatching { vm.api.memoryProposals().size }.onSuccess { waiting = it }
     }
 
     Text("Ce que les modèles retiennent de toi d'une conversation à l'autre (commun avec le site). " +
@@ -63,7 +73,7 @@ fun MemorySettings(vm: ChatViewModel) {
         })
     }
     OutlinedButton(onClick = { open = true }, enabled = enabled != null) {
-        Text("Voir la mémoire ($count souvenir${if (count > 1) "s" else ""})")
+        Text("Voir la mémoire ($count souvenir${if (count > 1) "s" else ""}" + (if (waiting > 0) ", $waiting à valider" else "") + ")")
     }
     error?.let { Text("⚠ $it", color = MaterialTheme.colorScheme.error, fontSize = 13.sp) }
     if (open) MemoryDialog(vm) { open = false }
@@ -79,10 +89,13 @@ private fun MemoryDialog(vm: ChatViewModel, onDismiss: () -> Unit) {
     var addingTitle by remember { mutableStateOf("") }
     var editing by remember { mutableStateOf<Api.Memory?>(null) }
     var reload by remember { mutableStateOf(0) }
+    var proposals by remember { mutableStateOf<List<Api.Proposal>>(emptyList()) }
+    val context = LocalContext.current
 
     LaunchedEffect(query, reload) {
         delay(250)
         runCatching { vm.api.memory(query.trim()).second }.onSuccess { list = it; error = null }.onFailure { error = it.message }
+        runCatching { vm.api.memoryProposals() }.onSuccess { proposals = it }
     }
     fun act(block: suspend () -> Unit) = scope.launch {
         runCatching { block() }.onSuccess { reload++ }.onFailure { error = it.message }
@@ -93,6 +106,29 @@ private fun MemoryDialog(vm: ChatViewModel, onDismiss: () -> Unit) {
         title = { Text("🧠 Mémoire") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (proposals.isNotEmpty()) {
+                    Text("À valider (${proposals.size})", fontWeight = FontWeight.SemiBold)
+                    Column(Modifier.heightIn(max = 260.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        proposals.forEach { p ->
+                            Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = MaterialTheme.shapes.medium) {
+                                Column(Modifier.fillMaxWidth().padding(10.dp)) {
+                                    Text(proposalText(p), fontSize = 14.sp)
+                                    if (p.type == "modif" && p.oldText.isNotBlank()) Text(p.oldText, fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 2.dp))
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                                        fun decide(accept: Boolean) {
+                                            proposals = proposals - p
+                                            NotificationManagerCompat.from(context).cancel("souvenir", p.id)
+                                            act { vm.api.memoryDecide(p.id, accept) }
+                                        }
+                                        TextButton(onClick = { decide(false) }) { Text("Refuser") }
+                                        TextButton(onClick = { decide(true) }) { Text("Valider") }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
                 OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Rechercher") })
                 OutlinedTextField(addingTitle, { addingTitle = it.take(60) }, Modifier.fillMaxWidth(), singleLine = true,
                     label = { Text("Titre du nouveau souvenir") })
@@ -148,5 +184,15 @@ private fun MemoryDialog(vm: ChatViewModel, onDismiss: () -> Unit) {
             },
             dismissButton = { TextButton(onClick = { editing = null }) { Text("Annuler") } },
         )
+    }
+}
+
+/** « Nouveau souvenir : titre - description », « Mise à jour du souvenir "titre" : description »… */
+private fun proposalText(p: Api.Proposal) = buildAnnotatedString {
+    val bold = SpanStyle(fontWeight = FontWeight.SemiBold)
+    when (p.type) {
+        "ajout" -> { append("Nouveau souvenir : "); withStyle(bold) { append(p.title) }; append(" - ${p.text}") }
+        "modif" -> { append("Mise à jour du souvenir « "); withStyle(bold) { append(p.oldTitle.ifBlank { p.title }) }; append(" » : ${p.text}") }
+        else -> { append("Oublier le souvenir « "); withStyle(bold) { append(p.title) }; append(" » : ${p.text}") }
     }
 }

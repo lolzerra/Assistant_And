@@ -111,6 +111,24 @@ class Api(private val prefs: Prefs) {
         call(request("/api/memory_settings").put(JSONObject().put("enabled", on).toString().toRequestBody(json)).build())
     }
 
+    /** Souvenir proposé par la relecture, en attente de validation. type : ajout, modif ou oubli. */
+    data class Proposal(val id: Int, val type: String, val title: String, val text: String, val oldTitle: String, val oldText: String)
+
+    suspend fun memoryProposals(): List<Proposal> {
+        val arr = JSONObject(call(request("/api/memory/proposals").get().build())).getJSONArray("proposals")
+        return List(arr.length()) { i ->
+            val p = arr.getJSONObject(i)
+            fun str(k: String) = if (p.isNull(k)) "" else p.optString(k)
+            Proposal(p.getInt("id"), str("type"), str("titre"), str("texte"), str("ancien_titre"), str("ancien_texte"))
+        }
+    }
+
+    /** Valide ou refuse ; renvoie l'état final (accepted, refused). */
+    suspend fun memoryDecide(id: Int, accept: Boolean): String {
+        val body = JSONObject().put("accept", accept).toString().toRequestBody(json)
+        return JSONObject(call(request("/api/memory/proposals/$id").post(body).build())).optString("state")
+    }
+
     /** Relecture mémoire d'un échange : null tant qu'elle tourne, sinon ce qui a changé. */
     suspend fun memoryReview(id: Int): JSONObject? {
         val o = JSONObject(call(request("/api/memory/review/$id").get().build()))

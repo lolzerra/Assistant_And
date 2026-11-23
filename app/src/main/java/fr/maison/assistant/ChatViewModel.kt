@@ -337,14 +337,10 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             kotlinx.coroutines.delay(wait)
             val res = runCatching { api.memoryReview(id) }.getOrElse { return@launch } ?: continue
             fun n(key: String) = res.optJSONArray(key)?.length() ?: 0
-            val (added, changed, forgotten) = Triple(n("ajoutes"), n("modifies"), n("supprimes"))
-            val parts = listOfNotNull(
-                if (added > 0) "$added souvenir${if (added > 1) "s" else ""} ajouté${if (added > 1) "s" else ""}" else null,
-                if (changed > 0) "$changed corrigé${if (changed > 1) "s" else ""}" else null,
-                if (forgotten > 0) "$forgotten oublié${if (forgotten > 1) "s" else ""}" else null,
-            )
+            // Ce ne sont que des propositions : à valider dans Réglages → Mémoire ou depuis la notification.
+            val total = n("ajoutes") + n("modifies") + n("supprimes")
             val i = messages.indexOfFirst { it === msg }
-            if (parts.isNotEmpty() && i >= 0) messages[i] = msg.copy(memory = "🧠 " + parts.joinToString(" · "))
+            if (total > 0 && i >= 0) messages[i] = msg.copy(memory = "🧠 $total changement${if (total > 1) "s" else ""} de mémoire à valider")
             return@launch
         }
     }

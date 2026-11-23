@@ -30,10 +30,21 @@ class AlertReceiver : BroadcastReceiver() {
         if (intent.action != ACTION) return
         val prefs = Prefs(context)
         val cid = intent.getIntExtra("conversation", 0)
+        val memory = intent.getIntExtra("souvenir", 0)
         val title = intent.getStringExtra("titre").orEmpty()
         val text = intent.getStringExtra("texte").orEmpty()
         val signature = intent.getStringExtra("signature").orEmpty()
-        if (prefs.alertKey.isEmpty() || cid == 0 || !valid(prefs.alertKey, cid, title, text, signature)) {
+        if (memory > 0) {
+            // Souvenir proposé : signé sur « s<numéro> », notification avec Valider / Refuser.
+            if (prefs.alertKey.isEmpty() || !valid(prefs.alertKey, "s$memory", title, text, signature)) {
+                Journal.log("proposition de souvenir refusée (signature absente ou fausse)")
+                return
+            }
+            MemoryActionReceiver.show(context, memory, cid, title, text)
+            Journal.log("proposition de souvenir $memory reçue")
+            return
+        }
+        if (prefs.alertKey.isEmpty() || cid == 0 || !valid(prefs.alertKey, "$cid", title, text, signature)) {
             Journal.log("alerte refusée (signature absente ou fausse)")
             return
         }
@@ -54,7 +65,7 @@ class AlertReceiver : BroadcastReceiver() {
         const val ACTION = "fr.maison.assistant.action.ALERTE"
         const val CHANNEL = "veille"
 
-        private fun valid(key: String, cid: Int, title: String, text: String, signature: String): Boolean {
+        private fun valid(key: String, cid: String, title: String, text: String, signature: String): Boolean {
             val mac = Mac.getInstance("HmacSHA256").apply { init(SecretKeySpec(key.toByteArray(), "HmacSHA256")) }
             val expected = mac.doFinal("$cid|$title|$text".toByteArray()).joinToString("") { "%02x".format(it) }
             return MessageDigest.isEqual(expected.toByteArray(), signature.lowercase().toByteArray())
