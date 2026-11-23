@@ -54,6 +54,8 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     var transcribing by mutableStateOf(false)
         private set
     var notice by mutableStateOf<String?>(null)
+    /** Conversation commencée avec un autre modèle que celui de l'appli (souvent sur le site) : avertissement permanent. */
+    var modelWarning by mutableStateOf<String?>(null)
     private var sending: Job? = null
     /** Conversation affichée ici ; l'autre fenêtre (appli ou assistant) peut en avoir changé entre-temps. */
     private var shown = 0
@@ -90,6 +92,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                     shown = cid
                     messages.clear()
                     list.forEach { m -> messages.add(Msg(user = m.role == "user", text = m.text, imageIds = m.images)) }
+                    checkModel(list.lastOrNull { it.role == "assistant" && it.model.isNotBlank() }?.model)
                 }
                 .onFailure { prefs.conversation = 0 } // conversation supprimée sur le site : on repart de zéro
         }
@@ -101,7 +104,14 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { runCatching { api.warm(prefs.model, prefs.web, prefs.instructions, if (prefs.think) 2 else 0) } }
     }
 
+    /** Avertit si la conversation a été menée avec un autre modèle : la suite sera écrite par celui de l'appli. */
+    fun checkModel(used: String?) {
+        modelWarning = if (used.isNullOrBlank() || used == prefs.model) null
+        else "⚠ Conversation menée avec $used : l'assistant continue avec ${prefs.model}, qui n'a pas forcément le même style ni les mêmes capacités."
+    }
+
     fun newConversation() {
+        modelWarning = null
         speaker.stop()
         prefs.conversation = 0
         shown = 0

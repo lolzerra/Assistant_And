@@ -131,6 +131,9 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, hasMicPermission: () -
                 itemsIndexed(vm.messages) { _, m -> Bubble(vm, m) }
             }
 
+            vm.modelWarning?.let {
+                Text(it, color = MaterialTheme.colorScheme.tertiary, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
+            }
             vm.notice?.let {
                 Text(it, color = MaterialTheme.colorScheme.error, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
             }

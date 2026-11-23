@@ -146,7 +146,7 @@ class Api(private val prefs: Prefs) {
         return if (o.optString("state") == "pending") null else o
     }
 
-    data class Past(val role: String, val text: String, val images: List<Int>)
+    data class Past(val role: String, val text: String, val images: List<Int>, val model: String = "")
 
     /** Messages d'une conversation, avec les identifiants de leurs images, pour réafficher la discussion en cours. */
     suspend fun messages(conversation: Int): List<Past> {
@@ -155,7 +155,7 @@ class Api(private val prefs: Prefs) {
             val m = arr.getJSONObject(i)
             val atts = m.optJSONArray("attachments") ?: JSONArray()
             val images = (0 until atts.length()).map { atts.getJSONObject(it) }.filter { it.optString("kind") == "image" }.map { it.getInt("id") }
-            Past(m.getString("role"), m.optString("content"), images)
+            Past(m.getString("role"), m.optString("content"), images, if (m.isNull("model")) "" else m.optString("model"))
         }
     }
 
