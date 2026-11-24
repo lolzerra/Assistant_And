@@ -29,6 +29,7 @@ data class Msg(
     val actions: List<PhoneAction> = emptyList(),  // réveil, appel, SMS… demandés par l'assistant
     val memory: String? = null,  // « 🧠 1 souvenir ajouté » : relecture mémoire après la réponse
     val phases: List<String> = emptyList(),  // avant le premier mot : outils, consigne, conversation… dans l'ordre
+    val reading: String? = null,  // « 18 400 / 42 750 tokens lus » (llama.cpp) pendant l'étape en cours
     val started: Long = 0L,      // SystemClock.elapsedRealtime() à l'envoi, pour le compteur de secondes
 )
 
@@ -257,11 +258,26 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 var review = 0
                 // Étape supposée (lecture courte, le serveur ne la signale pas) : remplacée par la première étape réelle.
                 val phases = mutableListOf("Lecture de la conversation")
+                val from = mutableListOf<Int?>(null)  // position dans le prompt au début de chaque étape
+                val read = mutableListOf(0)           // tokens lus pendant chaque étape terminée
+                var pos = 0
+                var total = 0
                 var guessed = true
-                fun phase(name: String, guess: Boolean = false) {
-                    if (guessed && !guess) { phases.clear(); guessed = false }
-                    if (phases.lastOrNull() != name) phases.add(name)
+                fun phase(name: String, guess: Boolean = false, at: Int? = null) {
+                    if (guessed && !guess) { phases.clear(); from.clear(); read.clear(); guessed = false }
+                    if (phases.lastOrNull() != name) {
+                        val start = from.lastOrNull()
+                        if (at != null && start != null && read.isNotEmpty()) read[read.lastIndex] = at - start
+                        phases.add(name); from.add(at); read.add(0)
+                    }
                     if (guess) guessed = true
+                }
+                fun nf(n: Int) = String.format(java.util.Locale.FRANCE, "%,d", n)
+                fun shownPhases() = phases.mapIndexed { i, n -> if (i < phases.lastIndex && read[i] > 0) "$n · ${nf(read[i])} tokens" else n }
+                fun reading() = when {
+                    total <= 0 || reply.isNotEmpty() -> null
+                    pos >= total -> "${nf(total)} tokens lus"
+                    else -> "${nf(pos)} / ${nf(total)} tokens lus"
                 }
                 val steps = mutableListOf<String>()
                 val actions = mutableListOf<PhoneAction>()
@@ -269,9 +285,16 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                     when {
                         ev.has("content") -> { reply += ev.getString("content"); voice?.feed(reply) }
                         ev.has("content_reset") -> { reply = ev.getString("content_reset"); voice?.feed(reply) }
-                        ev.has("phase") -> phase(ev.getString("phase"))
-                        ev.has("thinking") -> phase("Réflexion")
-                        ev.has("tool") -> { steps.add(stepLabel(ev.getJSONObject("tool"))); phases.clear(); guessed = false }
+                        ev.has("phase") -> {
+                            if (ev.has("total")) { pos = ev.optInt("pos"); total = ev.optInt("total") }
+                            phase(ev.getString("phase"), at = if (ev.has("total")) pos else null)
+                        }
+                        ev.has("progress") -> ev.getJSONObject("progress").let { pos = it.optInt("pos"); total = it.optInt("total") }
+                        ev.has("thinking") -> { phase("Réflexion"); total = 0 }
+                        ev.has("tool") -> {
+                            steps.add(stepLabel(ev.getJSONObject("tool")))
+                            phases.clear(); from.clear(); read.clear(); guessed = false; total = 0
+                        }
                         ev.has("tool_done") -> phase("Lecture des résultats", guess = true)
                         ev.has("phone") -> ev.getJSONObject("phone").let { actions.add(PhoneAction(it.getString("name"), it)) }
                         ev.has("phone_query") -> {
@@ -296,7 +319,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                         "${ev.optDouble("seconds", 0.0)} s · ${ev.optInt("tokens")} tokens · ${ev.optDouble("tok_s", 0.0)} tok/s"
                     } else messages[index].stats
                     messages[index] = messages[index].copy(text = reply, steps = steps.toList(), stats = stats,
-                        pending = !ev.optBoolean("done"), actions = actions.toList(), phases = phases.toList())
+                        pending = !ev.optBoolean("done"), actions = actions.toList(), phases = shownPhases(), reading = reading())
                 }
                 voice?.finish(reply)
                 // Réveil, appli, itinéraire… : exécutés une fois la réponse lue à voix haute, sinon l'appli ouverte

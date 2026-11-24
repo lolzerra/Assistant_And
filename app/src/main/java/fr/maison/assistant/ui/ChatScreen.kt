@@ -281,7 +281,7 @@ private fun Waiting(m: Msg) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp, color = colors.onSurfaceVariant)
             val current = m.phases.lastOrNull()?.let { "$it…" }
-            Text(listOfNotNull(current, if (m.started > 0 && seconds > 0) "$seconds s" else null).joinToString(" · ").ifEmpty { "…" },
+            Text(listOfNotNull(current, m.reading, if (m.started > 0 && seconds > 0) "$seconds s" else null).joinToString(" · ").ifEmpty { "…" },
                 color = colors.onSurfaceVariant, fontSize = 13.sp)
         }
     }
