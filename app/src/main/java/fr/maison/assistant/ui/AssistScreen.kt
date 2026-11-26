@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.displayCutoutPadding
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -20,6 +22,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -84,42 +87,62 @@ fun AssistScreen(vm: ChatViewModel, onClose: () -> Unit, onOpenApp: () -> Unit, 
     var keyboard by remember { mutableStateOf(false) }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        val sheetHeight = maxHeight * 0.5f
-        Column(Modifier.fillMaxSize()) {
-            // Haut transparent : l'écran de l'appli en dessous. Un appui ferme l'assistant.
-            Box(
-                Modifier.weight(1f).fillMaxWidth()
-                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onClose() },
-                contentAlignment = Alignment.BottomCenter,
-            ) {
-                screenshot?.let { shot ->
-                    val attached = vm.attachments.any { it.label == "Ecran" }
-                    val preview = remember(shot) { runCatching { Images.thumb(shot.readBytes()) }.getOrNull() }
-                    FilledTonalButton(onClick = { if (!attached) vm.attachFile(shot, "Ecran") }, modifier = Modifier.padding(12.dp)) {
-                        preview?.let { Thumb(it, 24.dp) }
-                        Spacer(Modifier.width(8.dp))
-                        Text(if (attached) "Capture jointe ✓" else "Joindre une capture")
-                    }
-                }
-            }
-            Surface(
-                Modifier.fillMaxWidth().height(sheetHeight),
-                shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
-                color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 3.dp,
-            ) {
-                Column(Modifier.navigationBarsPadding().imePadding()) {
-                    Header(vm, onOpenApp)
-                    Messages(vm, Modifier.weight(1f))
-                    vm.notice?.let {
-                        Text(it, color = MaterialTheme.colorScheme.error, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 16.dp))
-                    }
-                    Attachments(vm)
-                    if (keyboard) KeyboardBar(vm, onMic = onMic, onVoice = { keyboard = false })
-                    else VoiceBar(vm, onMic = onMic, onKeyboard = { keyboard = true })
+        // Paysage : panneau pleine hauteur à droite, l'appli en dessous reste visible à gauche (carte, vidéo…).
+        val landscape = maxWidth > maxHeight
+        val shotButton: @Composable () -> Unit = {
+            screenshot?.let { shot ->
+                val attached = vm.attachments.any { it.label == "Ecran" }
+                val preview = remember(shot) { runCatching { Images.thumb(shot.readBytes()) }.getOrNull() }
+                FilledTonalButton(onClick = { if (!attached) vm.attachFile(shot, "Ecran") }, modifier = Modifier.padding(12.dp)) {
+                    preview?.let { Thumb(it, 24.dp) }
+                    Spacer(Modifier.width(8.dp))
+                    Text(if (attached) "Capture jointe ✓" else "Joindre une capture")
                 }
             }
         }
+        // Partie transparente : l'écran de l'appli en dessous. Un appui ferme l'assistant.
+        val outside = Modifier.clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onClose() }
+        if (landscape) {
+            Row(Modifier.fillMaxSize()) {
+                Box(Modifier.weight(1f).fillMaxHeight().then(outside), contentAlignment = Alignment.BottomEnd) { shotButton() }
+                Surface(
+                    Modifier.fillMaxHeight().width((maxWidth * 0.42f).coerceIn(340.dp, 520.dp)),
+                    shape = RoundedCornerShape(topStart = 20.dp, bottomStart = 20.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 3.dp,
+                ) {
+                    Panel(vm, keyboard, { keyboard = it }, onOpenApp, onMic,
+                        Modifier.statusBarsPadding().navigationBarsPadding().displayCutoutPadding().imePadding())
+                }
+            }
+        } else {
+            Column(Modifier.fillMaxSize()) {
+                Box(Modifier.weight(1f).fillMaxWidth().then(outside), contentAlignment = Alignment.BottomCenter) { shotButton() }
+                Surface(
+                    Modifier.fillMaxWidth().height(maxHeight * 0.5f),
+                    shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 3.dp,
+                ) {
+                    Panel(vm, keyboard, { keyboard = it }, onOpenApp, onMic, Modifier.navigationBarsPadding().imePadding())
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun Panel(vm: ChatViewModel, keyboard: Boolean, setKeyboard: (Boolean) -> Unit, onOpenApp: () -> Unit,
+                  onMic: () -> Unit, modifier: Modifier) {
+    Column(modifier) {
+        Header(vm, onOpenApp)
+        Messages(vm, Modifier.weight(1f))
+        vm.notice?.let {
+            Text(it, color = MaterialTheme.colorScheme.error, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 16.dp))
+        }
+        Attachments(vm)
+        if (keyboard) KeyboardBar(vm, onMic = onMic, onVoice = { setKeyboard(false) })
+        else VoiceBar(vm, onMic = onMic, onKeyboard = { setKeyboard(true) })
     }
 }
 
