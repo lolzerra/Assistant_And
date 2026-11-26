@@ -134,6 +134,7 @@ class AssistActivity : ComponentActivity() {
     override fun onStop() {
         super.onStop()
         Journal.log("fenêtre assistant en arrière-plan (écran allumé : ${getSystemService(PowerManager::class.java).isInteractive})")
+        if (isChangingConfigurations) return  // rotation : la fenêtre est recréée, la voix et le micro continuent
         vm.speaker.stop()
         if (vm.recording) vm.toggleRecording()
         // Écran éteint : on ferme, le prochain appui long repart d'une fenêtre neuve.

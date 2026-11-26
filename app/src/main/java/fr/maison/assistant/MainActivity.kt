@@ -79,7 +79,7 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         super.onStop()
         Journal.log("appli en arrière-plan")
-        vm.speaker.stop() // l'appli passe en arrière-plan : on se tait
+        if (!isChangingConfigurations) vm.speaker.stop() // l'appli passe en arrière-plan : on se tait (pas à la rotation)
     }
 
     private fun hasMic(): Boolean =
