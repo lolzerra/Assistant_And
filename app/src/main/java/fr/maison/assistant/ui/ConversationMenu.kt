@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmarks
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PhoneAndroid
@@ -55,6 +56,7 @@ fun ConversationMenu(vm: ChatViewModel) {
     var open by remember { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
     var browsing by remember { mutableStateOf(false) }
+    var navigating by remember { mutableStateOf(false) }
 
     IconButton(onClick = { open = true }) { Icon(Icons.Default.MoreVert, "Plus") }
     DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
@@ -79,10 +81,19 @@ fun ConversationMenu(vm: ChatViewModel) {
             leadingIcon = { Icon(Icons.Default.Bookmarks, null) },
             onClick = { open = false; browsing = true },
         )
+        DropdownMenuItem(
+            text = { Text(if (fr.maison.assistant.NavMode.active) "Quitter le mode navigation" else "Mode navigation") },
+            leadingIcon = { Icon(Icons.Default.DirectionsCar, null) },
+            onClick = {
+                open = false
+                if (fr.maison.assistant.NavMode.active) vm.stopNavigation() else navigating = true
+            },
+        )
     }
 
     if (saving) SaveDialog(onDismiss = { saving = false }) { where -> saving = false; vm.saveConversation(where) }
     if (browsing) SavedDialog(vm, onDismiss = { browsing = false })
+    if (navigating) NavDialog(vm, onDismiss = { navigating = false })
 }
 
 @Composable

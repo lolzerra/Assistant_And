@@ -215,6 +215,31 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---------- Envoi ----------
 
+    /** Mode navigation lancé à la main (⋮ → Mode navigation) : Bluetooth et localisation, musique, puis l'itinéraire. */
+    fun startNavigation(destination: String, app: String, playlist: String?) {
+        prefs.navApp = app
+        viewModelScope.launch {
+            val context = getApplication<Application>()
+            notice = "🚗 Mode navigation : activation…"
+            val (_, shown) = NavMode.enable(context)
+            notice = shown
+            if (!playlist.isNullOrBlank()) {
+                val music = withContext(Dispatchers.IO) { Music.play(context, playlist, "playlist", null) }
+                Journal.log("navigation : musique ${music.second}")
+            }
+            if (destination.isNotBlank()) {
+                val a = PhoneAction("telephone_itineraire", JSONObject().put("destination", destination).put("appli", app))
+                PhoneActions.run(context, a)
+                notice = "$shown · ${a.status}"
+            }
+        }
+    }
+
+    fun stopNavigation() {
+        NavMode.disable()
+        notice = null
+    }
+
     fun stop() {
         sending?.cancel()
     }
@@ -307,6 +332,8 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                                 "La musique sera lancée juste après ta réponse vocale. Annonce-le en une phrase courte " +
                                     "(sans affirmer le titre exact) ; si le lecteur ne trouve pas, l'utilisateur sera prévenu." to
                                     "🎵 Lancement après la réponse…"
+                            } else if (a.name == "telephone_mode_navigation") {
+                                if (q.optBoolean("actif", true)) NavMode.enable(getApplication()) else NavMode.disable()
                             } else withContext(Dispatchers.IO) { PhoneActions.query(getApplication(), a) }
                             a.status = status
                             actions.add(a)

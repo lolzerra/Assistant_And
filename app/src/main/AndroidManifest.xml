@@ -4,6 +4,8 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
     <!-- Mises à jour : installer l'APK téléchargé depuis les Releases GitHub -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- Actions demandées à l'assistant : réveil et minuteur, contacts, appel et SMS confirmés d'un appui -->
@@ -65,6 +67,14 @@
 
         <activity
             android:name=".LocationActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
+        <!-- Invisible : fenêtre d'Android « Activer le Bluetooth ? » (mode navigation) -->
+        <activity
+            android:name=".BluetoothActivity"
             android:excludeFromRecents="true"
             android:exported="false"
             android:taskAffinity=""

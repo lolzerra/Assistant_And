@@ -40,6 +40,10 @@ class Prefs(context: Context) {
     var instructions: String
         get() = p.getString("instructions", DEFAULT_INSTRUCTIONS) ?: DEFAULT_INSTRUCTIONS
         set(v) = p.edit().putString("instructions", v).apply()
+    var navApp: String  // appli du mode navigation lancé à la main : "maps" ou "waze"
+        get() = p.getString("nav_app", "maps") ?: "maps"
+        set(v) = p.edit().putString("nav_app", v).apply()
+
     var conversation: Int
         get() = p.getInt("conversation", 0)
         set(v) = p.edit().putInt("conversation", v).apply()

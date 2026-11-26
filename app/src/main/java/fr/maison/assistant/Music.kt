@@ -95,6 +95,13 @@ object Music {
             "🎵 ${list.size} playlist${if (list.size > 1) "s" else ""}"
     }
 
+    /** Noms des playlists du lecteur (vide s'il est absent ou ne répond pas). À appeler hors du fil principal. */
+    fun playlistNames(context: Context): List<String> {
+        if (!installed(context)) return emptyList()
+        val intent = Intent("$PACKAGE.action.LIST_PLAYLISTS").setClassName(PACKAGE, "$PACKAGE.ListPlaylistsActivity")
+        return request(context, intent)?.getStringArrayList("playlists").orEmpty()
+    }
+
     /** Lance l'Activity invisible du lecteur et attend sa réponse (10 s au plus). */
     private fun request(context: Context, intent: Intent): Bundle? {
         val action = "${context.packageName}.MUSIC_RESULT.${counter.incrementAndGet()}"

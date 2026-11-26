@@ -138,6 +138,7 @@ private fun Panel(vm: ChatViewModel, keyboard: Boolean, setKeyboard: (Boolean) -
                   onMic: () -> Unit, modifier: Modifier) {
     Column(modifier) {
         Header(vm, onOpenApp)
+        NavBanner(vm)
         Messages(vm, Modifier.weight(1f))
         vm.notice?.let {
             Text(it, color = MaterialTheme.colorScheme.error, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 16.dp))
