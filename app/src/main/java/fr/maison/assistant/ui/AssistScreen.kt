@@ -89,6 +89,8 @@ fun AssistScreen(vm: ChatViewModel, onClose: () -> Unit, onOpenApp: () -> Unit, 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         // Paysage : panneau pleine hauteur à droite, l'appli en dessous reste visible à gauche (carte, vidéo…).
         val landscape = maxWidth > maxHeight
+        val panelWidth = (maxWidth * 0.42f).coerceIn(340.dp, 520.dp)
+        val sheetHeight = maxHeight * 0.5f
         val shotButton: @Composable () -> Unit = {
             screenshot?.let { shot ->
                 val attached = vm.attachments.any { it.label == "Ecran" }
@@ -106,7 +108,7 @@ fun AssistScreen(vm: ChatViewModel, onClose: () -> Unit, onOpenApp: () -> Unit, 
             Row(Modifier.fillMaxSize()) {
                 Box(Modifier.weight(1f).fillMaxHeight().then(outside), contentAlignment = Alignment.BottomEnd) { shotButton() }
                 Surface(
-                    Modifier.fillMaxHeight().width((maxWidth * 0.42f).coerceIn(340.dp, 520.dp)),
+                    Modifier.fillMaxHeight().width(panelWidth),
                     shape = RoundedCornerShape(topStart = 20.dp, bottomStart = 20.dp),
                     color = MaterialTheme.colorScheme.surface,
                     tonalElevation = 3.dp,
@@ -119,7 +121,7 @@ fun AssistScreen(vm: ChatViewModel, onClose: () -> Unit, onOpenApp: () -> Unit, 
             Column(Modifier.fillMaxSize()) {
                 Box(Modifier.weight(1f).fillMaxWidth().then(outside), contentAlignment = Alignment.BottomCenter) { shotButton() }
                 Surface(
-                    Modifier.fillMaxWidth().height(maxHeight * 0.5f),
+                    Modifier.fillMaxWidth().height(sheetHeight),
                     shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
                     color = MaterialTheme.colorScheme.surface,
                     tonalElevation = 3.dp,
