@@ -185,6 +185,7 @@ object PhoneActions {
             "telephone_musique" -> Music.play(context, a.arg("recherche"), a.arg("type"), a.shuffle)
             "telephone_playlists" -> Music.playlists(context)
             "telephone_contact" -> contactCard(context, a.arg("nom"))
+            "telephone_agenda_lire" -> agendaSearch(context, a.arg("date"), a.arg("fin"), a.arg("recherche"))
             "telephone_aleatoire" -> Music.shuffle(context, a.args.takeIf { it.has("actif") }?.optBoolean("actif"))
             else -> "Erreur : action inconnue" to "⚠ Action inconnue"
         }
@@ -329,6 +330,66 @@ object PhoneActions {
         return found.distinctBy { digits(it.number).takeLast(9) }
             .sortedWith(compareBy({ plain(it.name) != plain(query) }, { it.name.length }))
             .take(5)
+    }
+
+    /**
+     * Événements de l'agenda : d'un jour ou d'une période, et/ou dont le titre, le lieu ou la description contient les mots
+     * cherchés. Sans date : aujourd'hui ; avec une recherche sans date : de -1 an à +1 an. 40 événements au plus.
+     */
+    private fun agendaSearch(context: Context, date: String, end: String, query: String): Pair<String, String> {
+        if (!has(context, Manifest.permission.READ_CALENDAR))
+            return "Erreur : autorisation Agenda manquante (⚙ Réglages → Autorisations)." to "⚠ Autorise l'agenda : ⚙ Réglages → Autorisations"
+        val today = LocalDate.now()
+        val words = plain(query).split(Regex("\\s+")).filter { it.isNotEmpty() }
+        val from = date.takeIf { it.isNotBlank() }?.let { LocalDate.parse(it.take(10)) }
+            ?: if (words.isEmpty()) today else today.minusYears(1)
+        var to = end.takeIf { it.isNotBlank() }?.let { LocalDate.parse(it.take(10)) }
+            ?: if (date.isNotBlank() || words.isEmpty()) from else today.plusYears(1)
+        if (to.isBefore(from)) to = from
+        if (to.isAfter(from.plusDays(800))) to = from.plusDays(800)
+        val zone = ZoneId.systemDefault()
+        val begin = from.atStartOfDay(zone).toInstant().toEpochMilli()
+        val finish = to.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        val uri = CalendarContract.Instances.CONTENT_URI.buildUpon().let {
+            android.content.ContentUris.appendId(it, begin); android.content.ContentUris.appendId(it, finish); it.build()
+        }
+        data class Ev(val title: String, val start: Long, val stop: Long, val allDay: Boolean, val place: String, val note: String, val cal: String)
+        val events = mutableListOf<Ev>()
+        context.contentResolver.query(uri, arrayOf(
+            CalendarContract.Instances.TITLE, CalendarContract.Instances.BEGIN, CalendarContract.Instances.END,
+            CalendarContract.Instances.ALL_DAY, CalendarContract.Instances.EVENT_LOCATION, CalendarContract.Instances.DESCRIPTION,
+            CalendarContract.Instances.CALENDAR_DISPLAY_NAME,
+        ), null, null, "${CalendarContract.Instances.BEGIN} ASC")?.use { c ->
+            while (c.moveToNext()) {
+                val e = Ev(c.getString(0).orEmpty(), c.getLong(1), c.getLong(2), c.getInt(3) == 1, c.getString(4).orEmpty(),
+                    c.getString(5).orEmpty(), c.getString(6).orEmpty())
+                if (words.isEmpty() || words.all { it in plain("${e.title} ${e.place} ${e.note}") }) events += e
+            }
+        }
+        val days = java.time.format.DateTimeFormatter.ofPattern("EEE d MMM yyyy", java.util.Locale.FRANCE)
+        val hours = java.time.format.DateTimeFormatter.ofPattern("HH:mm")
+        fun line(e: Ev): String {
+            // Les événements « toute la journée » sont en UTC dans l'agenda d'Android.
+            val z = if (e.allDay) java.time.ZoneOffset.UTC else zone
+            val s0 = java.time.Instant.ofEpochMilli(e.start).atZone(z)
+            val s1 = java.time.Instant.ofEpochMilli(e.stop).atZone(z)
+            val whenText = if (e.allDay) {
+                val last = s1.minusDays(1).toLocalDate()
+                days.format(s0) + (if (last.isAfter(s0.toLocalDate())) " → ${days.format(last)}" else "") + ", toute la journée"
+            } else if (s1.toLocalDate() == s0.toLocalDate()) "${days.format(s0)}, ${hours.format(s0)}–${hours.format(s1)}"
+            else "${days.format(s0)} ${hours.format(s0)} → ${days.format(s1)} ${hours.format(s1)}"
+            return "- $whenText : ${e.title.ifBlank { "(sans titre)" }}" +
+                (if (e.place.isNotBlank()) " · lieu : ${e.place}" else "") +
+                (if (e.note.isNotBlank()) " · note : ${e.note.replace(Regex("\\s+"), " ").take(200)}" else "") +
+                (if (e.cal.isNotBlank()) " · agenda : ${e.cal}" else "")
+        }
+        val period = if (from == to) days.format(from) else "du ${days.format(from)} au ${days.format(to)}"
+        val what = if (words.isEmpty()) "" else " contenant « $query »"
+        if (events.isEmpty()) return "Aucun événement $period$what." to "📅 Aucun événement"
+        val shown = events.take(40)
+        val more = if (events.size > shown.size) "\n(${events.size - shown.size} autres événements : précise la période.)" else ""
+        return "Événements $period$what :\n" + shown.joinToString("\n") { line(it) } + more to
+            "📅 ${events.size} événement${if (events.size > 1) "s" else ""}"
     }
 
     /** Fiche des contacts dont le nom contient tous les mots demandés (5 au plus) : numéros, e-mails, adresses… */

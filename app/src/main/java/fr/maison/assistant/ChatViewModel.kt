@@ -434,6 +434,8 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             when (tool.opt("actif")) { true -> "activé"; false -> "coupé"; else -> "inversé" }
         "telephone_playlists" -> "🎵 Liste des playlists"
         "telephone_contact" -> "👤 Contact : ${tool.optString("nom")}"
+        "telephone_agenda_lire" -> "📅 Agenda" + listOf(tool.optString("date"), tool.optString("recherche")).filter { it.isNotBlank() }
+            .joinToString(" · ").let { if (it.isBlank()) "" else " : $it" }
         "telephone_mode_navigation" -> "🚗 Mode navigation"
         "memoire_chercher" -> "🧠 Mémoire" + tool.optString("requete").let { if (it.isBlank()) "" else " : $it" }
         "programmer" -> "⏰ Programmé le ${tool.optString("date")} à ${tool.optString("heure")}"

@@ -4,6 +4,10 @@ import android.app.NotificationManager
 import android.content.Intent
 import android.net.Uri
 import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.Manifest
+import fr.maison.assistant.PhoneActions
 import fr.maison.assistant.NotifService
 import android.provider.Settings
 import androidx.compose.foundation.layout.Arrangement
@@ -224,6 +228,13 @@ private fun Permissions() {
     }
     PermissionRow("Modifier les paramètres système", "régler la luminosité", Settings.System.canWrite(context)) {
         open(Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, Uri.parse("package:" + context.packageName)))
+    }
+    val askCalendar = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { tick++ }
+    PermissionRow("Agenda", "chercher tes événements par jour ou par nom",
+        PhoneActions.has(context, Manifest.permission.READ_CALENDAR)) {
+        if (PhoneActions.has(context, Manifest.permission.READ_CALENDAR))
+            open(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + context.packageName)))
+        else askCalendar.launch(Manifest.permission.READ_CALENDAR)
     }
     Text("Contacts, appels et SMS sont demandés au premier usage.", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
