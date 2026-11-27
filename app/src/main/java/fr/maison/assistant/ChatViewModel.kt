@@ -433,6 +433,8 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         "telephone_aleatoire" -> "🔀 Aléatoire : " +
             when (tool.opt("actif")) { true -> "activé"; false -> "coupé"; else -> "inversé" }
         "telephone_playlists" -> "🎵 Liste des playlists"
+        "telephone_contact" -> "👤 Contact : ${tool.optString("nom")}"
+        "telephone_mode_navigation" -> "🚗 Mode navigation"
         "memoire_chercher" -> "🧠 Mémoire" + tool.optString("requete").let { if (it.isBlank()) "" else " : $it" }
         "programmer" -> "⏰ Programmé le ${tool.optString("date")} à ${tool.optString("heure")}"
         "taches_programmees" -> "⏰ Tâches programmées"

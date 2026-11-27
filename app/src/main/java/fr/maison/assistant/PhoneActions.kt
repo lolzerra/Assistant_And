@@ -184,6 +184,7 @@ object PhoneActions {
             "telephone_reglages" -> settings(context, a).let { it to it }
             "telephone_musique" -> Music.play(context, a.arg("recherche"), a.arg("type"), a.shuffle)
             "telephone_playlists" -> Music.playlists(context)
+            "telephone_contact" -> contactCard(context, a.arg("nom"))
             "telephone_aleatoire" -> Music.shuffle(context, a.args.takeIf { it.has("actif") }?.optBoolean("actif"))
             else -> "Erreur : action inconnue" to "⚠ Action inconnue"
         }
@@ -328,6 +329,61 @@ object PhoneActions {
         return found.distinctBy { digits(it.number).takeLast(9) }
             .sortedWith(compareBy({ plain(it.name) != plain(query) }, { it.name.length }))
             .take(5)
+    }
+
+    /** Fiche des contacts dont le nom contient tous les mots demandés (5 au plus) : numéros, e-mails, adresses… */
+    private fun contactCard(context: Context, query: String): Pair<String, String> {
+        if (!has(context, Manifest.permission.READ_CONTACTS))
+            return "Erreur : autorisation Contacts manquante." to "⚠ Autorise l'accès aux contacts : ⚙ Réglages → Autorisations"
+        val words = plain(query).split(Regex("\\s+")).filter { it.isNotEmpty() }
+        if (words.isEmpty()) return "Erreur : nom vide." to "⚠ Nom vide"
+        val found = mutableListOf<Pair<Long, String>>()
+        context.contentResolver.query(
+            ContactsContract.Contacts.CONTENT_URI,
+            arrayOf(ContactsContract.Contacts._ID, ContactsContract.Contacts.DISPLAY_NAME_PRIMARY), null, null, null,
+        )?.use { c ->
+            while (c.moveToNext()) {
+                val name = c.getString(1) ?: continue
+                if (words.all { it in plain(name) }) found += c.getLong(0) to name
+            }
+        }
+        if (found.isEmpty()) return "Aucun contact ne correspond à « $query »." to "👤 Aucun contact « $query »"
+        val picked = found.sortedWith(compareBy({ plain(it.second) != plain(query) }, { it.second.length })).take(5)
+        val res = context.resources
+        val cards = picked.map { (id, name) ->
+            val lines = linkedSetOf<String>()
+            context.contentResolver.query(
+                ContactsContract.Data.CONTENT_URI,
+                arrayOf(ContactsContract.Data.MIMETYPE, ContactsContract.Data.DATA1, ContactsContract.Data.DATA2,
+                    ContactsContract.Data.DATA3, ContactsContract.Data.DATA4),
+                "${ContactsContract.Data.CONTACT_ID} = ?", arrayOf(id.toString()), null,
+            )?.use { c ->
+                while (c.moveToNext()) {
+                    val value = c.getString(1)?.replace(Regex("\\s*\\n\\s*"), ", ")?.trim().orEmpty()
+                    if (value.isEmpty()) continue
+                    val type = c.getInt(2)
+                    val label = c.getString(3)
+                    when (c.getString(0)) {
+                        ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE ->
+                            lines += "Téléphone (${ContactsContract.CommonDataKinds.Phone.getTypeLabel(res, type, label)}) : $value"
+                        ContactsContract.CommonDataKinds.Email.CONTENT_ITEM_TYPE ->
+                            lines += "E-mail (${ContactsContract.CommonDataKinds.Email.getTypeLabel(res, type, label)}) : $value"
+                        ContactsContract.CommonDataKinds.StructuredPostal.CONTENT_ITEM_TYPE ->
+                            lines += "Adresse (${ContactsContract.CommonDataKinds.StructuredPostal.getTypeLabel(res, type, label)}) : $value"
+                        ContactsContract.CommonDataKinds.Event.CONTENT_ITEM_TYPE ->
+                            lines += "${if (type == ContactsContract.CommonDataKinds.Event.TYPE_BIRTHDAY) "Anniversaire" else
+                                ContactsContract.CommonDataKinds.Event.getTypeResource(type).let { r -> runCatching { res.getString(r) }.getOrDefault("Date") }} : $value"
+                        ContactsContract.CommonDataKinds.Organization.CONTENT_ITEM_TYPE ->
+                            lines += "Société : $value" + (c.getString(4)?.takeIf { it.isNotBlank() }?.let { " ($it)" } ?: "")
+                        ContactsContract.CommonDataKinds.Nickname.CONTENT_ITEM_TYPE -> lines += "Surnom : $value"
+                    }
+                }
+            }
+            "— $name\n" + (if (lines.isEmpty()) "  (fiche vide)" else lines.joinToString("\n") { "  $it" })
+        }
+        val more = if (found.size > picked.size) "\n(${found.size - picked.size} autre(s) contact(s) correspondent : précise le nom si besoin.)" else ""
+        return "Contacts trouvés :\n" + cards.joinToString("\n") + more to
+            (if (picked.size == 1) "👤 Fiche de ${picked[0].second}" else "👤 ${picked.size} contacts trouvés")
     }
 
     /** Appel direct si autorisé, sinon le numéro est composé et l'utilisateur appuie sur Appeler. */
