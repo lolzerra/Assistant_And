@@ -246,6 +246,16 @@ object PhoneActions {
         return if (on) "🔕 Ne pas déranger activé ✓" else "🔔 Ne pas déranger coupé ✓"
     }
 
+    /**
+     * Position du curseur de luminosité d'Android (0–100 %) → valeur réelle (1–255). Le curseur suit une courbe
+     * « gamma » (BrightnessUtils.convertGammaToLinear d'Android) : 50 % du curseur ≈ 8 % de la valeur brute.
+     */
+    private fun sliderToBrightness(pct: Int): Int {
+        val s = pct.coerceIn(0, 100) / 100.0
+        val ratio = if (s <= 0.5) (s / 0.5) * (s / 0.5) else Math.exp((s - 0.55991073) / 0.17883277) + 0.28466892
+        return Math.round(1 + (ratio / 12.0).coerceIn(0.0, 1.0) * 254).toInt().coerceIn(1, 255)
+    }
+
     private fun settings(context: Context, a: PhoneAction): String {
         val done = mutableListOf<String>()
         if (a.args.has("luminosite")) {
@@ -255,7 +265,7 @@ object PhoneActions {
             } else {
                 val cr = context.contentResolver
                 Settings.System.putInt(cr, Settings.System.SCREEN_BRIGHTNESS_MODE, Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL)
-                Settings.System.putInt(cr, Settings.System.SCREEN_BRIGHTNESS, (pct * 255 + 50) / 100)
+                Settings.System.putInt(cr, Settings.System.SCREEN_BRIGHTNESS, sliderToBrightness(pct))
                 done += "☀ Luminosité à $pct % ✓"
             }
         }
