@@ -332,6 +332,17 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                                 "La musique sera lancée juste après ta réponse vocale. Annonce-le en une phrase courte " +
                                     "(sans affirmer le titre exact) ; si le lecteur ne trouve pas, l'utilisateur sera prévenu." to
                                     "🎵 Lancement après la réponse…"
+                            } else if (a.name == "telephone_capture_ecran") {
+                                // Capture faite par Android à l'appui long : l'écran sous l'assistant.
+                                val shot = ScreenCapture.file.value
+                                if (shot == null || !shot.exists()) {
+                                    "Erreur : pas de capture d'écran disponible. L'assistant doit être ouvert par appui long depuis " +
+                                        "l'écran à regarder, avec « Utiliser une capture d'écran » activé dans les réglages de l'assistant " +
+                                        "d'Android. Explique-le brièvement à l'utilisateur." to "⚠ Pas de capture d'écran"
+                                } else runCatching {
+                                    val id = api.uploadImage("ecran.jpg", withContext(Dispatchers.IO) { shot.readBytes() })
+                                    "CAPTURE:$id" to "📸 Écran regardé"
+                                }.getOrElse { "Erreur : envoi de la capture impossible (${it.message})." to "⚠ Capture non envoyée" }
                             } else if (a.name == "telephone_mode_navigation") {
                                 if (q.optBoolean("actif", true)) NavMode.enable(getApplication()) else NavMode.disable()
                             } else withContext(Dispatchers.IO) { PhoneActions.query(getApplication(), a) }
@@ -434,6 +445,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             when (tool.opt("actif")) { true -> "activé"; false -> "coupé"; else -> "inversé" }
         "telephone_playlists" -> "🎵 Liste des playlists"
         "telephone_contact" -> "👤 Contact : ${tool.optString("nom")}"
+        "telephone_capture_ecran" -> "📸 Regarde l'écran"
         "telephone_agenda_lire" -> "📅 Agenda" + listOf(tool.optString("date"), tool.optString("recherche")).filter { it.isNotBlank() }
             .joinToString(" · ").let { if (it.isBlank()) "" else " : $it" }
         "telephone_mode_navigation" -> "🚗 Mode navigation"

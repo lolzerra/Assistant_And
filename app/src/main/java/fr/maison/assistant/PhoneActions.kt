@@ -259,6 +259,15 @@ object PhoneActions {
                 done += "☀ Luminosité à $pct % ✓"
             }
         }
+        if (a.args.optBoolean("luminosite_auto") && !a.args.has("luminosite")) {
+            done += if (!Settings.System.canWrite(context)) {
+                "⚠ Luminosité : autorise « Modifier les paramètres système » (⚙ Réglages → Autorisations)"
+            } else {
+                Settings.System.putInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS_MODE,
+                    Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC)
+                "☀ Luminosité automatique ✓"
+            }
+        }
         if (a.args.has("sonnerie")) {
             val pct = a.args.optInt("sonnerie").coerceIn(0, 100)
             val am = context.getSystemService(AudioManager::class.java)
