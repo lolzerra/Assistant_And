@@ -247,13 +247,18 @@ object PhoneActions {
     }
 
     /**
-     * Position du curseur de luminosité d'Android (0–100 %) → valeur réelle (1–255). Le curseur suit une courbe
-     * « gamma » (BrightnessUtils.convertGammaToLinear d'Android) : 50 % du curseur ≈ 8 % de la valeur brute.
+     * Position du curseur de luminosité (0–100 %) → valeur réelle (1–255). Le curseur ne suit pas une droite, et la courbe
+     * standard d'Android (BrightnessUtils) ne tombait pas juste sur le téléphone de l'utilisateur : table relevée sur
+     * ce téléphone (22 → 30 %, 34 → 45 %, 68 → 75 %), interpolée en logarithme entre les points (courbe exponentielle).
      */
+    private val BRIGHTNESS_POINTS = listOf(0 to 1, 30 to 22, 45 to 34, 75 to 68, 100 to 255)
+
     private fun sliderToBrightness(pct: Int): Int {
-        val s = pct.coerceIn(0, 100) / 100.0
-        val ratio = if (s <= 0.5) (s / 0.5) * (s / 0.5) else Math.exp((s - 0.55991073) / 0.17883277) + 0.28466892
-        return Math.round(1 + (ratio / 12.0).coerceIn(0.0, 1.0) * 254).toInt().coerceIn(1, 255)
+        val p = pct.coerceIn(0, 100)
+        val (lo, hi) = BRIGHTNESS_POINTS.zipWithNext().first { (_, b) -> p <= b.first }
+        val t = (p - lo.first).toDouble() / (hi.first - lo.first)
+        val v = Math.exp(Math.log(lo.second.toDouble()) + t * (Math.log(hi.second.toDouble()) - Math.log(lo.second.toDouble())))
+        return Math.round(v).toInt().coerceIn(1, 255)
     }
 
     private fun settings(context: Context, a: PhoneAction): String {
